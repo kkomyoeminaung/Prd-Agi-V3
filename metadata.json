@@ -1,0 +1,5 @@
+{
+  "name": "PRD-AGI Master v3",
+  "description": "A 6-domain Causal AI system for Medical, Legal, Financial, Education, Security, and Mental Health analysis using Relational Tensors.",
+  "requestFramePermissions": ["microphone"]
+}

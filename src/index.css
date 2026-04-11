@@ -1,0 +1,73 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+:root {
+  --background: #07090f;
+  --foreground: #dce6f0;
+  --card: #0c0f1a;
+  --card-foreground: #dce6f0;
+  --popover: #0c0f1a;
+  --popover-foreground: #dce6f0;
+  --primary: #7c3aed;
+  --primary-foreground: #ffffff;
+  --secondary: #192033;
+  --secondary-foreground: #dce6f0;
+  --muted: #192033;
+  --muted-foreground: #9ca3af;
+  --accent: #192033;
+  --accent-foreground: #dce6f0;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #192033;
+  --input: #111827;
+  --ring: #7c3aed;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+.tensor-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  transition: all 0.2s ease;
+}
+
+.tensor-card:hover {
+  border-color: var(--primary);
+}
+
+.sev-critical { color: #f87171; }
+.sev-high { color: #fb923c; }
+.sev-medium { color: #facc15; }
+.sev-low { color: #4ade80; }
+
+.chat-user {
+  background: #1e2d3d;
+  border-radius: 12px 12px 3px 12px;
+  padding: 10px 14px;
+  margin: 8px 0;
+  align-self: flex-end;
+  max-width: 80%;
+}
+
+.chat-ai {
+  background: #111827;
+  border: 1px solid #192033;
+  border-left: 3px solid #7c3aed;
+  border-radius: 3px 12px 12px 12px;
+  padding: 10px 14px;
+  margin: 8px 0;
+  align-self: flex-start;
+  max-width: 80%;
+}
+

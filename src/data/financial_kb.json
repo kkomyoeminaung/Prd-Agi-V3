@@ -1,0 +1,38 @@
+[
+  {
+    "indicator": "sma_golden_cross",
+    "signal": "bullish_trend",
+    "C": 0.85,
+    "W": 1.3,
+    "L": "Fuzzy",
+    "T": 0.8,
+    "U": 0.17,
+    "D": 1,
+    "category": "technical",
+    "strength": "strong"
+  },
+  {
+    "indicator": "rsi_oversold",
+    "signal": "buy_signal",
+    "C": 0.78,
+    "W": 1.2,
+    "L": "Fuzzy",
+    "T": 0.73,
+    "U": 0.24,
+    "D": 1,
+    "category": "technical",
+    "strength": "moderate"
+  },
+  {
+    "indicator": "vix_high",
+    "signal": "fear_elevated",
+    "C": 0.83,
+    "W": 1.2,
+    "L": "Fuzzy",
+    "T": 0.78,
+    "U": 0.19,
+    "D": 1,
+    "category": "macro",
+    "strength": "strong"
+  }
+]
