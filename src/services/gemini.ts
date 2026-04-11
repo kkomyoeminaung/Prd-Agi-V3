@@ -2,9 +2,11 @@ import { GoogleGenAI } from "@google/genai";
 
 // Helper to get AI instance
 const getAI = () => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is not configured.");
+  // Check both standard Vite env and process.env (injected via define)
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+  
+  if (!apiKey || apiKey === "undefined") {
+    throw new Error("GEMINI_API_KEY is not configured. Please set it in your environment variables.");
   }
   return new GoogleGenAI({ apiKey });
 };
