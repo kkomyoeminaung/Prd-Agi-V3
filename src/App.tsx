@@ -41,14 +41,41 @@ export default function App() {
   const [explanation, setExplanation] = useState('');
   const [isExplaining, setIsExplaining] = useState(false);
   
-  const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', content: string}[]>([]);
+  const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', content: string}[]>(() => {
+    const saved = localStorage.getItem('prd_agi_chat_history');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [chatInput, setChatInput] = useState('');
   const [isChatting, setIsChatting] = useState(false);
+  const [attachments, setAttachments] = useState<{ name: string, mimeType: string, data: string }[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    localStorage.setItem('prd_agi_chat_history', JSON.stringify(chatHistory));
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory]);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    for (const file of Array.from(files)) {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const base64 = (event.target?.result as string).split(',')[1];
+        setAttachments(prev => [...prev, {
+          name: file.name,
+          mimeType: file.type,
+          data: base64
+        }]);
+      };
+      
+      if (file.type.startsWith('image/') || file.type === 'text/plain' || file.type === 'application/pdf') {
+        reader.readAsDataURL(file);
+      }
+    }
+  };
 
   const handleAnalyze = async () => {
     if (!query.trim()) return;
@@ -109,13 +136,19 @@ export default function App() {
   };
 
   const handleChat = async () => {
-    if (!chatInput.trim()) return;
+    if (!chatInput.trim() && attachments.length === 0) return;
     const msg = chatInput;
+    const currentAttachments = [...attachments];
     setChatInput('');
-    setChatHistory(prev => [...prev, { role: 'user', content: msg }]);
+    setAttachments([]);
+    
+    setChatHistory(prev => [...prev, { 
+      role: 'user', 
+      content: msg + (currentAttachments.length > 0 ? `\n\n[Attached: ${currentAttachments.map(a => a.name).join(', ')}]` : '') 
+    }]);
     setIsChatting(true);
     
-    const response = await chatWithAI(msg, chatHistory);
+    const response = await chatWithAI(msg, chatHistory, currentAttachments);
     setChatHistory(prev => [...prev, { role: 'ai', content: response }]);
     setIsChatting(false);
   };
@@ -199,8 +232,8 @@ export default function App() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <StatCard label="Total Tensors" value="1,138" sub="+682 v3" icon={Cpu} />
                   <StatCard label="Active Domains" value="6" sub="Unified" icon={Brain} />
-                  <StatCard label="Causal Logic" value="Law/Fuzzy" sub="Dual Mode" icon={Zap} />
-                  <StatCard label="Confidence" value="94.2%" sub="Avg Score" icon={CheckCircle2} />
+                  <StatCard label="Neural Memory" value="Active" sub="Long-term" icon={MessageSquare} />
+                  <StatCard label="Self-Learning" value="Enabled" sub="Causal Evolution" icon={Zap} />
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -431,7 +464,32 @@ export default function App() {
                 </div>
 
                 <div className="p-4 border-t border-[#192033] bg-[#111827]">
+                  {attachments.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {attachments.map((att, i) => (
+                        <div key={i} className="flex items-center gap-2 px-3 py-1 bg-[#192033] border border-primary/30 rounded-full text-xs">
+                          <span className="truncate max-w-[100px]">{att.name}</span>
+                          <button onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))} className="text-red-400 hover:text-red-300">×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex gap-3">
+                    <input 
+                      type="file" 
+                      multiple 
+                      className="hidden" 
+                      ref={fileInputRef}
+                      onChange={handleFileUpload}
+                      accept="image/*,text/plain,application/pdf"
+                    />
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-3 rounded-xl bg-[#192033] hover:bg-[#252d45] text-muted-foreground transition-all"
+                      title="Upload Files (Images, Text, PDF)"
+                    >
+                      <Zap className="w-5 h-5" />
+                    </button>
                     <button 
                       onClick={toggleListening}
                       className={cn(
@@ -444,14 +502,14 @@ export default function App() {
                     <input 
                       type="text" 
                       className="flex-1 bg-[#07090f] border border-[#192033] rounded-xl px-4 py-2 outline-none focus:border-primary transition-all"
-                      placeholder="Type your message..."
+                      placeholder="Type your message or upload files..."
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleChat()}
                     />
                     <button 
                       onClick={handleChat}
-                      disabled={isChatting || !chatInput.trim()}
+                      disabled={isChatting || (!chatInput.trim() && attachments.length === 0)}
                       className="p-3 rounded-xl bg-primary hover:bg-primary/90 disabled:opacity-50 transition-all"
                     >
                       <Send className="w-5 h-5 text-white" />

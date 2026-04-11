@@ -54,7 +54,7 @@ export async function explainResults(queryResult: any, context: string = "") {
   }
 }
 
-export async function chatWithAI(message: string, history: any[] = []) {
+export async function chatWithAI(message: string, history: any[] = [], attachments: { mimeType: string, data: string }[] = []) {
   try {
     const ai = getAI();
     const systemInstruction = `
@@ -62,6 +62,8 @@ export async function chatWithAI(message: string, history: any[] = []) {
       You analyze problems through the lens of relational physics: R(A,B)=[C,W,L,T,U,D].
       Be accurate, compassionate, and always note appropriate caveats.
       If the user asks about medical, legal, or financial issues, provide analysis based on causal logic but always advise professional consultation.
+      
+      You have access to Google Search grounding to provide up-to-date information when needed.
     `;
 
     // Format history for the SDK
@@ -70,16 +72,32 @@ export async function chatWithAI(message: string, history: any[] = []) {
       parts: [{ text: h.content }]
     }));
 
+    // Prepare parts for the current message
+    const currentParts: any[] = [{ text: message }];
+    
+    // Add attachments if any
+    attachments.forEach(att => {
+      currentParts.push({
+        inlineData: {
+          mimeType: att.mimeType,
+          data: att.data
+        }
+      });
+    });
+
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: [
         ...formattedHistory,
-        { role: "user", parts: [{ text: message }] }
+        { role: "user", parts: currentParts }
       ],
       config: {
         systemInstruction,
         temperature: 0.7,
         topP: 0.95,
+        tools: [
+          { googleSearch: {} }
+        ]
       }
     });
 
