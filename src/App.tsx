@@ -154,72 +154,70 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-[#07090f] text-[#dce6f0] overflow-hidden font-sans">
-      {/* Sidebar */}
-      <aside className="w-64 border-r border-[#192033] bg-[#0c0f1a] flex flex-col">
-        <div className="p-6 flex items-center gap-3 border-b border-[#192033]">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <Zap className="w-5 h-5 text-white" />
+    <div className="flex flex-col h-screen bg-[#07090f] text-[#dce6f0] overflow-hidden font-sans">
+      {/* Top Navigation Header */}
+      <header className="h-16 border-b border-[#192033] bg-[#0c0f1a]/80 backdrop-blur-md flex items-center justify-between px-6 z-20">
+        <div className="flex items-center gap-8">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+              <Zap className="w-5 h-5 text-white" />
+            </div>
+            <h1 className="font-bold text-lg tracking-tight hidden md:block">PRD-AGI <span className="text-primary">v3</span></h1>
           </div>
-          <h1 className="font-bold text-lg tracking-tight">PRD-AGI <span className="text-primary">v3</span></h1>
+          
+          <nav className="flex items-center gap-1">
+            <NavItem 
+              icon={Activity} 
+              label="Dashboard" 
+              active={activeTab === 'dashboard'} 
+              onClick={() => setActiveTab('dashboard')} 
+            />
+            <NavItem 
+              icon={Search} 
+              label="KB Analysis" 
+              active={activeTab === 'analysis'} 
+              onClick={() => setActiveTab('analysis')} 
+            />
+            <NavItem 
+              icon={MessageSquare} 
+              label="Neural Chat" 
+              active={activeTab === 'chat'} 
+              onClick={() => setActiveTab('chat')} 
+            />
+            <NavItem 
+              icon={BarChart3} 
+              label="System Monitor" 
+              active={activeTab === 'monitor'} 
+              onClick={() => setActiveTab('monitor')} 
+            />
+          </nav>
         </div>
-        
-        <nav className="flex-1 p-4 space-y-2">
-          <SidebarItem 
-            icon={Activity} 
-            label="Dashboard" 
-            active={activeTab === 'dashboard'} 
-            onClick={() => setActiveTab('dashboard')} 
-          />
-          <SidebarItem 
-            icon={Search} 
-            label="KB Analysis" 
-            active={activeTab === 'analysis'} 
-            onClick={() => setActiveTab('analysis')} 
-          />
-          <SidebarItem 
-            icon={MessageSquare} 
-            label="Neural Chat" 
-            active={activeTab === 'chat'} 
-            onClick={() => setActiveTab('chat')} 
-          />
-          <SidebarItem 
-            icon={BarChart3} 
-            label="System Monitor" 
-            active={activeTab === 'monitor'} 
-            onClick={() => setActiveTab('monitor')} 
-          />
-        </nav>
-        
-        <div className="p-4 border-t border-[#192033]">
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-[#111827] border border-[#192033]">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Engine Online</span>
+
+        <div className="flex items-center gap-4">
+          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#111827] border border-[#192033]">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Engine Online</span>
           </div>
+          <button className="p-2 rounded-full hover:bg-[#192033] transition-colors">
+            <Settings className="w-5 h-5 text-muted-foreground" />
+          </button>
         </div>
-      </aside>
+      </header>
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden relative">
-        {/* Header */}
-        <header className="h-16 border-b border-[#192033] bg-[#07090f]/80 backdrop-blur-md flex items-center justify-between px-8 z-10">
-          <div className="flex items-center gap-4">
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-widest">
-              {activeTab === 'dashboard' && 'Central Command'}
-              {activeTab === 'analysis' && 'Causal Analysis'}
-              {activeTab === 'chat' && 'Neural Interface'}
-              {activeTab === 'monitor' && 'Resource Metrics'}
-            </h2>
-          </div>
-          <div className="flex items-center gap-4">
-            <button className="p-2 rounded-full hover:bg-[#192033] transition-colors">
-              <Settings className="w-5 h-5 text-muted-foreground" />
-            </button>
-          </div>
-        </header>
+        {/* Sub-header for context */}
+        <div className="h-10 border-b border-[#192033]/50 bg-[#07090f] flex items-center px-8">
+          <h2 className="text-[10px] font-medium text-muted-foreground uppercase tracking-[0.2em]">
+            {activeTab === 'dashboard' && 'Central Command'}
+            {activeTab === 'analysis' && 'Causal Analysis'}
+            {activeTab === 'chat' && 'Neural Interface'}
+            {activeTab === 'monitor' && 'Resource Metrics'}
+          </h2>
+        </div>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8">
           <AnimatePresence mode="wait">
             {activeTab === 'dashboard' && (
               <motion.div 
@@ -414,7 +412,7 @@ export default function App() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="max-w-4xl mx-auto h-[calc(100vh-12rem)] flex flex-col border border-[#192033] rounded-2xl bg-[#0c0f1a] overflow-hidden"
+                className="max-w-6xl mx-auto h-[calc(100vh-10rem)] flex flex-col border border-[#192033] rounded-2xl bg-[#0c0f1a] overflow-hidden shadow-2xl shadow-black/50"
               >
                 <div className="p-4 border-b border-[#192033] bg-[#111827] flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -603,20 +601,25 @@ export default function App() {
   );
 }
 
-function SidebarItem({ icon: Icon, label, active, onClick }: { icon: any, label: string, active: boolean, onClick: () => void }) {
+function NavItem({ icon: Icon, label, active, onClick }: { icon: any, label: string, active: boolean, onClick: () => void }) {
   return (
     <button 
       onClick={onClick}
       className={cn(
-        "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group",
+        "flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 group relative",
         active 
-          ? "bg-primary text-white shadow-lg shadow-primary/20" 
-          : "text-muted-foreground hover:bg-[#192033] hover:text-[#dce6f0]"
+          ? "text-primary" 
+          : "text-muted-foreground hover:text-[#dce6f0]"
       )}
     >
-      <Icon className={cn("w-5 h-5", active ? "text-white" : "group-hover:text-primary")} />
-      <span className="font-medium">{label}</span>
-      {active && <ChevronRight className="w-4 h-4 ml-auto" />}
+      <Icon className={cn("w-4 h-4", active ? "text-primary" : "group-hover:text-primary")} />
+      <span className="font-medium text-sm hidden sm:block">{label}</span>
+      {active && (
+        <motion.div 
+          layoutId="nav-active"
+          className="absolute bottom-[-18px] left-0 right-0 h-0.5 bg-primary"
+        />
+      )}
     </button>
   );
 }
