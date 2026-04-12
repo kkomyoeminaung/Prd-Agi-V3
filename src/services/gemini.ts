@@ -1,15 +1,39 @@
-import { GoogleGenAI } from "@google/genai";
+// DeepSeek API Configuration
+const DEEPSEEK_ENDPOINT = "https://api.deepseek.com/v1/chat/completions";
 
-// Helper to get AI instance
-const getAI = () => {
-  // Check both standard Vite env and process.env (injected via define)
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-  
+const getApiKey = () => {
+  const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
   if (!apiKey || apiKey === "undefined") {
-    throw new Error("GEMINI_API_KEY is not configured. Please set it in your environment variables.");
+    throw new Error("VITE_DEEPSEEK_API_KEY is not configured.");
   }
-  return new GoogleGenAI({ apiKey });
+  return apiKey;
 };
+
+async function callDeepSeek(messages: any[]) {
+  const apiKey = getApiKey();
+  
+  const response = await fetch(DEEPSEEK_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: "deepseek-chat",
+      messages: messages,
+      temperature: 0.7,
+      max_tokens: 2048
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error?.message || "DeepSeek API Request Failed");
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
+}
 
 function formatAIError(error: any) {
   const msg = error.message || String(error);
@@ -17,14 +41,13 @@ function formatAIError(error: any) {
     return "⚠️ API Quota ပြည့်သွားပါပြီ။ ခဏစောင့်ပြီးမှ ပြန်လည်ကြိုးစားပေးပါခင်ဗျာ။ (Please wait a moment before trying again.)";
   }
   if (msg.includes("API key")) {
-    return "Error: Gemini API Key is missing or invalid. Please check your environment settings.";
+    return "Error: DeepSeek API Key is missing or invalid. Please check your environment settings.";
   }
   return `Error: ${msg}`;
 }
 
 export async function explainResults(queryResult: any, context: string = "") {
   try {
-    const ai = getAI();
     const domain = queryResult.domain;
     const topResults = queryResult.results.slice(0, 3).map((r: any) => ({
       name: r.display,
@@ -50,71 +73,45 @@ export async function explainResults(queryResult: any, context: string = "") {
       Explain what the causality (C) and uncertainty (U) metrics imply for these specific findings.
     `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      config: {
-        systemInstruction,
-      }
-    });
+    const messages = [
+      { role: "system", content: systemInstruction },
+      { role: "user", content: prompt }
+    ];
 
-    return response.text || "No explanation could be generated at this time.";
+    return await callDeepSeek(messages);
   } catch (error: any) {
-    console.error("Gemini Explain Error:", error);
+    console.error("DeepSeek Explain Error:", error);
     return formatAIError(error);
   }
 }
 
-export async function chatWithAI(message: string, history: any[] = [], attachments: { mimeType: string, data: string }[] = []) {
+export async function chatWithAI(message: string, history: any[] = [], attachments: any[] = []) {
   try {
-    const ai = getAI();
     const systemInstruction = `
       You are PRD-AGI v3 — a truth-first AI with causal reasoning. 
       You analyze problems through the lens of relational physics: R(A,B)=[C,W,L,T,U,D].
       Be accurate, compassionate, and always note appropriate caveats.
       If the user asks about medical, legal, or financial issues, provide analysis based on causal logic but always advise professional consultation.
-      
-      You have access to Google Search grounding to provide up-to-date information when needed.
     `;
 
-    // Format history for the SDK
-    const formattedHistory = history.map(h => ({
-      role: h.role === 'user' ? 'user' : 'model',
-      parts: [{ text: h.content }]
-    }));
+    // DeepSeek is text-only, so we notify about attachments if present
+    let finalMessage = message;
+    if (attachments.length > 0) {
+      finalMessage += "\n\n(Note: User provided attachments which are currently not supported in text-only mode)";
+    }
 
-    // Prepare parts for the current message
-    const currentParts: any[] = [{ text: message }];
-    
-    // Add attachments if any
-    attachments.forEach(att => {
-      currentParts.push({
-        inlineData: {
-          mimeType: att.mimeType,
-          data: att.data
-        }
-      });
-    });
+    const messages = [
+      { role: "system", content: systemInstruction },
+      ...history.map(h => ({
+        role: h.role === 'user' ? 'user' : 'assistant',
+        content: h.content
+      })),
+      { role: "user", content: finalMessage }
+    ];
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: [
-        ...formattedHistory,
-        { role: "user", parts: currentParts }
-      ],
-      config: {
-        systemInstruction,
-        temperature: 0.7,
-        topP: 0.95,
-        tools: [
-          { googleSearch: {} }
-        ]
-      }
-    });
-
-    return response.text || "I'm sorry, I couldn't process that request.";
+    return await callDeepSeek(messages);
   } catch (error: any) {
-    console.error("Gemini Chat Error:", error);
+    console.error("DeepSeek Chat Error:", error);
     return formatAIError(error);
   }
 }
