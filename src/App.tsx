@@ -422,8 +422,35 @@ export default function App() {
                           </motion.div>
                         )}
 
-                        <div className="p-6 rounded-xl border border-[#192033] bg-[#0c0f1a]">
-                          <h4 className="text-lg font-semibold mb-4">Analysis Summary</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                          <div className="p-6 rounded-xl border border-[#192033] bg-[#0c0f1a]">
+                            <h4 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                              <Zap className="w-5 h-5 text-primary" />
+                              Causal Plasticity
+                            </h4>
+                            <div className="space-y-3">
+                              <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">Dominant Paccaya</span>
+                                <span className="px-3 py-1 rounded-full bg-blue-500/20 text-blue-400 text-xs font-bold border border-blue-500/30">
+                                  {analysisResult.dominantPaccaya?.name}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">Condition Weight</span>
+                                <span className="font-mono text-blue-400">
+                                  {(analysisResult.dominantPaccaya?.weight || 0).toFixed(4)}
+                                </span>
+                              </div>
+                              <div className="pt-2">
+                                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                  The Neural Core has shifted its causal weighting towards <b>{analysisResult.dominantPaccaya?.name}</b> based on the current query manifold.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="p-6 rounded-xl border border-[#192033] bg-[#0c0f1a]">
+                            <h4 className="text-lg font-semibold mb-4">Analysis Summary</h4>
                           <div className="space-y-4">
                             <div className="flex justify-between items-center">
                               <span className="text-muted-foreground">Overall Severity</span>
@@ -448,7 +475,8 @@ export default function App() {
                         </div>
                       </div>
                     </div>
-                  </>
+                  </div>
+                </>
                 )}
               </motion.div>
             )}

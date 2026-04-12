@@ -1,4 +1,5 @@
 import { RelationalTensor, DISCLAIMERS, RelationalTensorData } from "./prd-engine";
+import { plasticity } from "./causal-plasticity";
 import medicalData from "../data/medical_kb.json";
 import legalData from "../data/legal_kb.json";
 import financialData from "../data/financial_kb.json";
@@ -24,6 +25,7 @@ export interface QueryResult {
   steps?: string[];
   isCrisis?: boolean;
   disclaimer: string;
+  dominantPaccaya?: { index: number; name: string; weight: number };
 }
 
 export interface MasterResponse {
@@ -34,6 +36,7 @@ export interface MasterResponse {
   count: number;
   summary: any;
   disclaimer: string;
+  dominantPaccaya?: { index: number; name: string; weight: number };
 }
 
 class BaseKB {
@@ -192,6 +195,22 @@ export class MasterEngine {
     });
 
     results = scoreResults(cmap, topK);
+    
+    // --- Dynamic Paccaya Weighting Integration ---
+    // 1. Construct context vector (6 domains)
+    const domainOrder = ["medical", "legal", "financial", "education", "security", "mental"];
+    const contextVector = domainOrder.map(d => {
+      if (domain === d) return 1.0;
+      const count = results.filter(r => r.domain === d).length;
+      return Math.min(1.0, count / 5);
+    });
+
+    // 2. Update weights based on current context
+    plasticity.updateWeights(contextVector);
+    
+    // 3. Get dominant Paccaya for this query
+    const dominant = plasticity.getDominantPaccaya(contextVector);
+
     if (domain !== "auto") {
       label = this.getLabel(domain);
     } else if (results.length > 0) {
@@ -206,6 +225,7 @@ export class MasterEngine {
       count: results.length,
       summary: this.summarize(results),
       disclaimer: DISCLAIMERS[domain] || DISCLAIMERS.general,
+      dominantPaccaya: dominant
     };
   }
 
