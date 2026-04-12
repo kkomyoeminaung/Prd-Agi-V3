@@ -37,13 +37,22 @@ async function callCerebras(messages: any[]) {
 
 function formatAIError(error: any) {
   const msg = error.message || String(error);
-  if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota")) {
-    return "⚠️ API Quota ပြည့်သွားပါပြီ။ ခဏစောင့်ပြီးမှ ပြန်လည်ကြိုးစားပေးပါခင်ဗျာ။ (Please wait a moment before trying again.)";
+  // Handle quota, balance, rate limit, and generic connection errors
+  if (
+    msg.includes("429") || 
+    msg.includes("RESOURCE_EXHAUSTED") || 
+    msg.includes("quota") || 
+    msg.includes("balance") ||
+    msg.includes("Insufficient Balance")
+  ) {
+    return "⚠️ အသုံးပြုမှု များပြားနေပါသည်။ ခဏစောင့်ပြီးမှ ပြန်လည်ကြိုးစားပေးပါခင်ဗျာ။ (Please wait a moment before trying again.)";
   }
+  
   if (msg.includes("API key")) {
-    return "Error: Cerebras API Key is missing or invalid. Please check your environment settings.";
+    return "Error: Neural Core connection failed. Please check your configuration.";
   }
-  return `Error: ${msg}`;
+  
+  return "⚠️ စနစ်အတွင်း အနည်းငယ် ကြန့်ကြာမှု ရှိနေပါသည်။ ခဏစောင့်ပေးပါ။";
 }
 
 export async function explainResults(queryResult: any, context: string = "") {
