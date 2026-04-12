@@ -42,6 +42,12 @@ class PRDDatabase {
         if (!db.objectStoreNames.contains('dream_logs')) {
           db.createObjectStore('dream_logs', { keyPath: 'id', autoIncrement: true });
         }
+        if (!db.objectStoreNames.contains('paccaya_weights')) {
+          db.createObjectStore('paccaya_weights', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('core_snapshots')) {
+          db.createObjectStore('core_snapshots', { keyPath: 'id', autoIncrement: true });
+        }
       },
     });
     return this.db;
@@ -98,6 +104,29 @@ class PRDDatabase {
     const db = await this.getDB();
     const all = await db.getAll('dream_logs');
     return all.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
+  }
+
+  // Feature 4 & 5: Core & Weights
+  async saveWeights(weights: number[]) {
+    const db = await this.getDB();
+    return db.put('paccaya_weights', { id: 'current', weights, timestamp: Date.now() });
+  }
+
+  async getWeights() {
+    const db = await this.getDB();
+    const data = await db.get('paccaya_weights', 'current');
+    return data?.weights || null;
+  }
+
+  async saveSnapshot(snapshot: any) {
+    const db = await this.getDB();
+    return db.add('core_snapshots', { ...snapshot, timestamp: Date.now() });
+  }
+
+  async getLastSnapshot() {
+    const db = await this.getDB();
+    const all = await db.getAll('core_snapshots');
+    return all.sort((a, b) => b.timestamp - a.timestamp)[0] || null;
   }
 }
 

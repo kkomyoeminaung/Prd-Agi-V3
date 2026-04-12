@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Brain, Database, Moon, Search, Clock, Trash2, ExternalLink, RefreshCw } from 'lucide-react';
+import { Brain, Database, Moon, Search, Clock, Trash2, ExternalLink, RefreshCw, Zap, Shield, Activity } from 'lucide-react';
 import { prdDB, Conversation, KnowledgeChunk, DreamLog } from '../lib/db';
 import { DreamAgent } from '../services/dreamAgent';
+import { coreEngine } from '../services/coreEngine';
 
 export const MemoryBank: React.FC = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -152,3 +153,115 @@ export const DreamLogPanel: React.FC = () => {
     </div>
   );
 };
+
+export const CausalPlasticity: React.FC = () => {
+  const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    const load = () => setStats(coreEngine.getStats());
+    load();
+    const interval = setInterval(load, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!stats) return null;
+
+  return (
+    <div className="p-6 rounded-xl border border-[#192033] bg-[#0c0f1a] space-y-4">
+      <h3 className="text-lg font-semibold flex items-center gap-2">
+        <Zap className="w-5 h-5 text-primary" />
+        Causal Plasticity
+      </h3>
+      <div className="space-y-4">
+        {stats.topPaccayas.map((p: any, i: number) => (
+          <div key={i} className="space-y-1">
+            <div className="flex justify-between text-[10px]">
+              <span className="font-bold text-primary uppercase tracking-widest">{p.name}</span>
+              <span className="font-mono text-muted-foreground">{(p.weight * 100).toFixed(1)}%</span>
+            </div>
+            <div className="h-1.5 bg-[#111827] rounded-full overflow-hidden border border-[#192033]">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${p.weight * 100}%` }}
+                className="h-full bg-primary"
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="text-[9px] text-muted-foreground leading-relaxed italic">
+        Weights evolve via gradient descent: w_a(t+1) = w_a(t) - η * (∂κ/∂w_a). Curvature (κ) drives the learning rate η.
+      </p>
+    </div>
+  );
+};
+
+export const SystemHealth: React.FC = () => {
+  const [stats, setStats] = useState<any>(null);
+  const [isDiagnosing, setIsDiagnosing] = useState(false);
+
+  const load = () => setStats(coreEngine.getStats());
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const runDiagnostic = async () => {
+    setIsDiagnosing(true);
+    await coreEngine.runDiagnostic();
+    setIsDiagnosing(false);
+    load();
+  };
+
+  if (!stats) return null;
+
+  return (
+    <div className="p-6 rounded-xl border border-[#192033] bg-[#0c0f1a] space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+          <Shield className="w-5 h-5 text-primary" />
+          System Health
+        </h3>
+        <button 
+          onClick={runDiagnostic}
+          disabled={isDiagnosing}
+          className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all"
+        >
+          <Activity className={cn("w-3 h-3", isDiagnosing && "animate-spin")} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <HealthStat label="Integrity" value={stats.integrityStatus} color={stats.integrityStatus === 'Secure' ? 'text-green-400' : 'text-red-400'} />
+        <HealthStat label="Curvature (κ)" value={stats.currentKappa.toFixed(3)} color={stats.currentKappa > 0.4 ? 'text-yellow-400' : 'text-primary'} />
+        <HealthStat label="Rollbacks" value={stats.rollbackCount} />
+        <HealthStat label="Last Snap" value={stats.lastSnapshotTime ? new Date(stats.lastSnapshotTime).toLocaleTimeString() : 'None'} />
+      </div>
+
+      <div className="p-3 rounded-lg bg-[#111827] border border-[#192033]">
+        <div className="flex items-center gap-2 mb-2">
+          <div className={`w-2 h-2 rounded-full ${stats.integrityStatus === 'Secure' ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
+          <span className="text-[10px] font-bold uppercase tracking-widest">Core Protection Active</span>
+        </div>
+        <p className="text-[9px] text-muted-foreground leading-relaxed">
+          Snapshots taken every 10 interactions. Automatic rollback triggered if κ {'>'} 0.6 or checksum mismatch detected.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+function HealthStat({ label, value, color = "text-muted-foreground" }: { label: string, value: any, color?: string }) {
+  return (
+    <div className="p-2 rounded-lg bg-[#111827] border border-[#192033]">
+      <p className="text-[8px] text-muted-foreground uppercase tracking-widest mb-1">{label}</p>
+      <p className={cn("text-xs font-mono font-bold", color)}>{value}</p>
+    </div>
+  );
+}
+
+function cn(...inputs: any[]) {
+  return inputs.filter(Boolean).join(' ');
+}

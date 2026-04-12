@@ -17,10 +17,11 @@ import { JourneyPanel } from './components/JourneyPanel';
 import { PatthanaHeatmap } from './components/PatthanaHeatmap';
 import { QuantumInterference } from './components/QuantumInterference';
 import { DocumentAnalysis } from './components/DocumentAnalysis';
-import { MemoryBank, KnowledgeBase, DreamLogPanel } from './components/MemoryPanels';
+import { MemoryBank, KnowledgeBase, DreamLogPanel, CausalPlasticity, SystemHealth } from './components/MemoryPanels';
 import { persistence } from './lib/persistence';
 import { prdDB } from './lib/db';
 import { DreamAgent } from './services/dreamAgent';
+import { coreEngine } from './services/coreEngine';
 import { explainResults, chatWithAI, searchWithAI, analyzeDocument } from './services/gemini';
 
 function cn(...inputs: ClassValue[]) {
@@ -88,6 +89,7 @@ export default function App() {
 
     // Initialize Dream Agent
     DreamAgent.init();
+    coreEngine.init();
   }, []);
 
   const startListening = () => {
@@ -285,6 +287,9 @@ export default function App() {
         timestamp: Date.now(),
         kappa: 0.1 // Placeholder
       });
+
+      // Feature 4: Self-Learning (Update Weights)
+      await coreEngine.updateWeights('up', 0.15); // Simulated feedback/kappa
 
       setIsChatting(false);
     } catch (error) {
@@ -919,8 +924,14 @@ export default function App() {
                 className="max-w-7xl mx-auto"
               >
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <MemoryBank />
-                  <KnowledgeBase />
+                  <div className="space-y-6">
+                    <MemoryBank />
+                    <CausalPlasticity />
+                  </div>
+                  <div className="space-y-6">
+                    <KnowledgeBase />
+                    <SystemHealth />
+                  </div>
                   <DreamLogPanel />
                 </div>
               </motion.div>

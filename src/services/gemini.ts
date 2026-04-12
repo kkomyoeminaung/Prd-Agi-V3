@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { prdDB } from "../lib/db";
 import { SearchService } from "./search";
+import { coreEngine } from "./coreEngine";
 
 // Groq API Configuration
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
@@ -288,6 +289,10 @@ export async function chatWithAI(message: string, history: any[] = [], attachmen
     }
 
     const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေပါ။ သို့သော် technical terms (κ, tensor, PRD) များကို English ဖြင့် ထားပါ။" : "";
+    
+    const coreStats = coreEngine.getStats();
+    const weightsStr = coreStats.topPaccayas.map(p => `${p.name}: ${p.weight.toFixed(3)}`).join(", ");
+
     let systemInstruction = `
       ${PRD_IDENTITY}
       Your primary function is to analyze complex relationships using the Relational Physics framework: R(A,B)=[C,W,L,T,U,D].
@@ -295,6 +300,9 @@ export async function chatWithAI(message: string, history: any[] = [], attachmen
       CONTEXTUAL AWARENESS:
       Use the following retrieved context to inform your answer if relevant.
       ${contextString}
+      
+      DYNAMIC PACCAYA WEIGHTS (Current State):
+      ${weightsStr}
       
       CORE MATHEMATICAL FOUNDATION:
       - Awareness Density: ρ_awareness = 1 / (1 + κ + S_causal)
