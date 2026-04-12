@@ -54,6 +54,12 @@ class PRDDatabase {
         if (!db.objectStoreNames.contains('validation_logs')) {
           db.createObjectStore('validation_logs', { keyPath: 'id', autoIncrement: true });
         }
+        if (!db.objectStoreNames.contains('learning_logs')) {
+          db.createObjectStore('learning_logs', { keyPath: 'id', autoIncrement: true });
+        }
+        if (!db.objectStoreNames.contains('meta_params')) {
+          db.createObjectStore('meta_params', { keyPath: 'id', autoIncrement: true });
+        }
       },
     });
     return this.db;
@@ -156,6 +162,30 @@ class PRDDatabase {
   async getValidationLogs(limit = 20) {
     const db = await this.getDB();
     const all = await db.getAll('validation_logs');
+    return all.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
+  }
+
+  // Feature 9: Learning Logs
+  async saveLearningLog(log: any) {
+    const db = await this.getDB();
+    return db.add('learning_logs', { ...log, timestamp: Date.now() });
+  }
+
+  async getLearningLogs(limit = 50) {
+    const db = await this.getDB();
+    const all = await db.getAll('learning_logs');
+    return all.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
+  }
+
+  // Feature 10: Meta Params
+  async saveMetaParams(params: any) {
+    const db = await this.getDB();
+    return db.add('meta_params', { ...params, timestamp: Date.now() });
+  }
+
+  async getMetaHistory(limit = 20) {
+    const db = await this.getDB();
+    const all = await db.getAll('meta_params');
     return all.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
   }
 }

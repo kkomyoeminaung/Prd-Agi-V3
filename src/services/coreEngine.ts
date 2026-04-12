@@ -20,6 +20,17 @@ class CoreEngine {
   private integrityStatus: 'Secure' | 'Corrupted' | 'Restored' = 'Secure';
   private currentKappa = 0.15;
 
+  // Feature 10: Meta-Learning Parameters
+  private metaParams = {
+    eta0: 0.05,
+    theta_pos: 0.2,
+    theta_neg: 0.5,
+    memoryRetention: 50
+  };
+
+  private learningCurve: number[] = [];
+  private metaHistory: any[] = [];
+
   // Closure to protect weights from direct console access
   private getProtectedWeights() {
     return Object.freeze([...this.weights]);
@@ -30,40 +41,117 @@ class CoreEngine {
     if (saved) {
       this.weights = saved;
     }
+    
+    const meta = await prdDB.getMetaHistory(1);
+    if (meta.length > 0) {
+      this.metaParams = { ...this.metaParams, ...meta[0] };
+    }
+
+    const logs = await prdDB.getLearningLogs(50);
+    this.learningCurve = logs.map(l => l.kappa).reverse();
+
     await this.verifyIntegrity();
   }
 
-  // Feature 4: Self-Learning (Gradient Descent)
-  async updateWeights(feedback: 'up' | 'down', kappa: number) {
+  // Feature 4 & 9: Online Learning
+  async updateWeights(feedback: 'up' | 'down' | 'auto', kappa: number) {
     this.currentKappa = kappa;
-    const eta0 = 0.05;
-    const S_causal = 0.2; // Simulated causal entropy
-    const rho_awareness = 1 / (1 + kappa + S_causal);
-    const eta = eta0 * rho_awareness;
-
-    // Gradient descent simulation: w_a(t+1) = w_a(t) - eta * dkappa/dw_a
-    // If feedback is 'down' or kappa is high, we shift weights away from current dominant ones
-    const direction = feedback === 'down' || kappa > 0.4 ? 1 : -1;
     
-    const newWeights = this.weights.map(w => {
-      const gradient = (Math.random() - 0.5) * direction;
-      return Math.max(0.01, Math.min(1, w - eta * gradient));
-    });
+    // Track learning curve
+    this.learningCurve.push(kappa);
+    if (this.learningCurve.length > 50) this.learningCurve.shift();
 
-    // Normalize
-    const sum = newWeights.reduce((a, b) => a + b, 0);
-    this.weights = newWeights.map(w => w / sum);
+    const S_causal = 0.2; 
+    const rho_awareness = 1 / (1 + kappa + S_causal);
+    const eta = this.metaParams.eta0 * (1 - rho_awareness);
 
-    await prdDB.saveWeights(this.weights);
+    // Feature 9: Continuous Online Learning Logic
+    let direction = 0;
+    if (feedback === 'up') direction = -1;
+    else if (feedback === 'down') direction = 1;
+    else {
+      // Auto-learning based on curvature
+      if (kappa < this.metaParams.theta_pos) direction = -1; // Positive reinforcement
+      else if (kappa > this.metaParams.theta_neg) direction = 1; // Negative reinforcement
+    }
+
+    if (direction !== 0) {
+      const newWeights = this.weights.map(w => {
+        const gradient = (Math.random() - 0.5) * direction;
+        return Math.max(0.01, Math.min(1, w - eta * gradient));
+      });
+
+      const sum = newWeights.reduce((a, b) => a + b, 0);
+      this.weights = newWeights.map(w => w / sum);
+      await prdDB.saveWeights(this.weights);
+    }
+
+    // Save learning log
+    await prdDB.saveLearningLog({ kappa, eta, feedback });
+
     this.interactionCount++;
 
     if (this.interactionCount % 10 === 0) {
       await this.createSnapshot();
     }
 
+    if (this.interactionCount % 20 === 0) {
+      // Feature 10: Trigger Meta-Learning
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(() => this.runMetaOptimization());
+      } else {
+        setTimeout(() => this.runMetaOptimization(), 1000);
+      }
+    }
+
     if (this.currentKappa > 0.6) {
       await this.rollback();
     }
+  }
+
+  // Feature 10: Meta-Learning (Learning to Learn)
+  async runMetaOptimization() {
+    console.log("PRD-AGI: Starting Meta-Optimization...");
+    const history = await prdDB.getRecentConversations(20);
+    if (history.length < 10) return;
+
+    const train = history.slice(5); // Last 15 for "training" simulation
+    const val = history.slice(0, 5); // First 5 for validation
+
+    // Grid Search candidates
+    const eta0_vals = [0.01, 0.05, 0.1];
+    const theta_pos_vals = [0.15, 0.2, 0.25];
+    const theta_neg_vals = [0.4, 0.5, 0.6];
+
+    let bestParams = { ...this.metaParams };
+    let minValKappa = 1.0;
+
+    for (const e of eta0_vals) {
+      for (const tp of theta_pos_vals) {
+        for (const tn of theta_neg_vals) {
+          // Simulate update on train and check val
+          // (Simplified simulation for browser performance)
+          const simulatedKappa = this.simulatePerformance(train, val, { eta0: e, theta_pos: tp, theta_neg: tn });
+          if (simulatedKappa < minValKappa) {
+            minValKappa = simulatedKappa;
+            bestParams = { ...this.metaParams, eta0: e, theta_pos: tp, theta_neg: tn };
+          }
+        }
+      }
+    }
+
+    this.metaParams = bestParams;
+    await prdDB.saveMetaParams({ ...bestParams, bestValKappa: minValKappa });
+    console.log("PRD-AGI: Meta-Optimization Complete. New Params:", bestParams);
+  }
+
+  private simulatePerformance(train: any[], val: any[], params: any): number {
+    // Heuristic simulation of how these params would affect kappa
+    // In a real system, this would be a full back-testing loop
+    let score = val.reduce((acc, curr) => acc + (curr.kappa || 0.5), 0) / val.length;
+    // Penalty for too high/low thresholds
+    if (params.theta_pos > params.theta_neg) score += 1.0;
+    return score * (1 + (Math.random() - 0.5) * 0.05); // Add slight noise
   }
 
   // Feature 5: Core Protection
@@ -208,7 +296,10 @@ class CoreEngine {
       lastSnapshotTime: this.lastSnapshotTime,
       rollbackCount: this.rollbackCount,
       currentKappa: this.currentKappa,
-      weights: this.getProtectedWeights()
+      weights: this.getProtectedWeights(),
+      metaParams: this.metaParams,
+      learningCurve: this.learningCurve,
+      interactionCount: this.interactionCount
     };
   }
 

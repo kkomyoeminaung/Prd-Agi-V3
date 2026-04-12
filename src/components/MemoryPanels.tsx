@@ -1,9 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Brain, Database, Moon, Search, Clock, Trash2, ExternalLink, RefreshCw, Zap, Shield, Activity, MessageCircle, CheckCircle, Download, Upload } from 'lucide-react';
+import { Brain, Database, Moon, Search, Clock, Trash2, ExternalLink, RefreshCw, Zap, Shield, Activity, MessageCircle, CheckCircle, Download, Upload, LineChart, Settings2 } from 'lucide-react';
 import { prdDB, Conversation, KnowledgeChunk, DreamLog } from '../lib/db';
 import { DreamAgent } from '../services/dreamAgent';
 import { coreEngine } from '../services/coreEngine';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+import { Line } from 'react-chartjs-2';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 export const MemoryBank: React.FC = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -437,3 +458,142 @@ export const KnowledgeTransfer: React.FC = () => {
     </div>
   );
 };
+
+export const LearningDashboard: React.FC = () => {
+  const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    const load = () => setStats(coreEngine.getStats());
+    load();
+    const interval = setInterval(load, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!stats) return null;
+
+  const chartData = {
+    labels: stats.learningCurve.map((_: any, i: number) => i),
+    datasets: [
+      {
+        label: 'Curvature (κ)',
+        data: stats.learningCurve,
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59, 130, 246, 0.5)',
+        tension: 0.4,
+        pointRadius: 0,
+      },
+    ],
+  };
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { enabled: true },
+    },
+    scales: {
+      x: { display: false },
+      y: { 
+        min: 0, 
+        max: 1,
+        grid: { color: '#192033' },
+        ticks: { color: '#6b7280', font: { size: 8 } }
+      },
+    },
+  };
+
+  const avgKappa = stats.learningCurve.length > 0 
+    ? stats.learningCurve.reduce((a: number, b: number) => a + b, 0) / stats.learningCurve.length 
+    : 0;
+
+  return (
+    <div className="p-6 rounded-xl border border-[#192033] bg-[#0c0f1a] space-y-4">
+      <h3 className="text-lg font-semibold flex items-center gap-2">
+        <LineChart className="w-5 h-5 text-primary" />
+        Continuous Learning
+      </h3>
+      
+      <div className="grid grid-cols-2 gap-3">
+        <HealthStat label="Learning Rate" value={stats.metaParams.eta0.toFixed(3)} />
+        <HealthStat label="Avg Curvature" value={avgKappa.toFixed(3)} color={avgKappa > 0.4 ? 'text-yellow-400' : 'text-green-400'} />
+        <HealthStat label="Updates" value={stats.interactionCount} />
+        <HealthStat label="Samples" value={stats.learningCurve.length} />
+      </div>
+
+      <div className="h-32 w-full bg-[#111827] rounded-lg border border-[#192033] p-2">
+        <Line data={chartData} options={chartOptions} />
+      </div>
+
+      <p className="text-[9px] text-muted-foreground leading-relaxed">
+        Online learning updates weights after every interaction. Learning rate η scales with awareness density.
+      </p>
+    </div>
+  );
+};
+
+export const MetaLearningProgress: React.FC = () => {
+  const [stats, setStats] = useState<any>(null);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+
+  useEffect(() => {
+    const load = () => setStats(coreEngine.getStats());
+    load();
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const runMeta = async () => {
+    setIsOptimizing(true);
+    await coreEngine.runMetaOptimization();
+    setIsOptimizing(false);
+  };
+
+  if (!stats) return null;
+
+  return (
+    <div className="p-6 rounded-xl border border-[#192033] bg-[#0c0f1a] space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+          <Settings2 className="w-5 h-5 text-primary" />
+          Meta-Learning
+        </h3>
+        <button 
+          onClick={runMeta}
+          disabled={isOptimizing}
+          className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all"
+        >
+          <RefreshCw className={cn("w-3 h-3", isOptimizing && "animate-spin")} />
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <MetaParam label="Base η₀" value={stats.metaParams.eta0} />
+          <MetaParam label="θ pos" value={stats.metaParams.theta_pos} />
+          <MetaParam label="θ neg" value={stats.metaParams.theta_neg} />
+          <MetaParam label="Retention" value={stats.metaParams.memoryRetention} />
+        </div>
+
+        <div className="p-3 rounded-lg bg-[#111827] border border-[#192033]">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+            <span className="text-[10px] font-bold uppercase tracking-widest">Hyperparameter Tuning</span>
+          </div>
+          <p className="text-[9px] text-muted-foreground leading-relaxed">
+            Meta-Learning optimizes learning parameters by back-testing on recent history every 20 interactions.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+function MetaParam({ label, value }: { label: string, value: any }) {
+  return (
+    <div className="flex justify-between items-center p-2 rounded bg-[#111827] border border-[#192033]">
+      <span className="text-[8px] text-muted-foreground uppercase tracking-widest">{label}</span>
+      <span className="text-[10px] font-mono font-bold text-primary">{value}</span>
+    </div>
+  );
+}

@@ -17,7 +17,7 @@ import { JourneyPanel } from './components/JourneyPanel';
 import { PatthanaHeatmap } from './components/PatthanaHeatmap';
 import { QuantumInterference } from './components/QuantumInterference';
 import { DocumentAnalysis } from './components/DocumentAnalysis';
-import { MemoryBank, KnowledgeBase, DreamLogPanel, CausalPlasticity, SystemHealth, SelfRefinementLog, ValidationDashboard, KnowledgeTransfer } from './components/MemoryPanels';
+import { MemoryBank, KnowledgeBase, DreamLogPanel, CausalPlasticity, SystemHealth, SelfRefinementLog, ValidationDashboard, KnowledgeTransfer, LearningDashboard, MetaLearningProgress } from './components/MemoryPanels';
 import { persistence } from './lib/persistence';
 import { prdDB } from './lib/db';
 import { DreamAgent } from './services/dreamAgent';
@@ -302,8 +302,8 @@ export default function App() {
         kappa: refinement?.curvature || 0.1
       });
 
-      // Feature 4: Self-Learning (Update Weights)
-      await coreEngine.updateWeights('up', refinement?.curvature || 0.15);
+      // Feature 4 & 9: Online Learning (Update Weights)
+      await coreEngine.updateWeights('auto', refinement?.curvature || 0.15);
 
       // Feature 7: Periodic Validation
       if (chatHistory.length % 10 === 0) {
@@ -947,11 +947,13 @@ export default function App() {
                     <MemoryBank />
                     <CausalPlasticity />
                     <SelfRefinementLog />
+                    <LearningDashboard />
                   </div>
                   <div className="space-y-6">
                     <KnowledgeBase />
                     <SystemHealth />
                     <ValidationDashboard />
+                    <MetaLearningProgress />
                   </div>
                   <div className="space-y-6">
                     <DreamLogPanel />
