@@ -224,6 +224,51 @@ export async function explainResults(queryResult: any, context: string = "", lan
   }
 }
 
+export async function analyzeDocument(text: string, language: 'en' | 'my' = 'en') {
+  try {
+    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေပါ။ သို့သော် technical terms (κ, tensor, PRD) များကို English ဖြင့် ထားပါ။" : "";
+    
+    const systemInstruction = `
+      ${PRD_IDENTITY}
+      You are a Document Analysis Expert using the PRD-AGI lens.
+      Analyze the provided text. For each key claim or significant statement, compute:
+      1. Domain (Medical, Legal, Financial, Education, Security, Mental Health)
+      2. C (Causality 0-1)
+      3. U (Uncertainty 0-1)
+      4. Risk Level (Low, Medium, High, Critical)
+      5. Implication: A brief causal consequence.
+      
+      Format the output as a JSON array of objects:
+      [{ "claim": "string", "domain": "string", "c": number, "u": number, "risk": "string", "implication": "string", "tensor": "R(claim, implication) = [C, W, L, T, U, D]" }]
+      
+      Ensure the "tensor" field follows the PRD-AGI format strictly.
+      ${myanmarInstruction}
+    `;
+
+    const messages = [
+      { role: "system", content: systemInstruction },
+      { role: "user", content: `Analyze this document: \n\n${text.slice(0, 10000)}` } // Limit text for safety
+    ];
+
+    let responseText;
+    if (GROQ_KEYS.length > 0) {
+      responseText = await callGroq(messages);
+    } else {
+      responseText = await callCerebras(messages);
+    }
+
+    // Attempt to parse JSON from response
+    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    throw new Error("Failed to parse tensor report from AI response.");
+  } catch (error: any) {
+    console.error("Document Analysis Error:", error);
+    return null;
+  }
+}
+
 export async function chatWithAI(message: string, history: any[] = [], attachments: any[] = [], persona: string = "general", language: 'en' | 'my' = 'en') {
   try {
     const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေပါ။ သို့သော် technical terms (κ, tensor, PRD) များကို English ဖြင့် ထားပါ။" : "";

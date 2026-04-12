@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Activity, Shield, Scale, TrendingUp, BookOpen, Heart, 
   Search, MessageSquare, Mic, Send, Trash2, Info, 
-  AlertTriangle, CheckCircle2, ChevronRight, BarChart3,
+  AlertTriangle, CheckCircle2, ChevronRight, BarChart3, FileText,
   Cpu, Zap, Brain, Settings, Volume2, Download, UserCheck,
   Stethoscope, ShieldCheck, Plus, Paperclip, X
 } from 'lucide-react';
@@ -16,8 +16,9 @@ import { CausalFlowDiagram } from './components/CausalFlowDiagram';
 import { JourneyPanel } from './components/JourneyPanel';
 import { PatthanaHeatmap } from './components/PatthanaHeatmap';
 import { QuantumInterference } from './components/QuantumInterference';
+import { DocumentAnalysis } from './components/DocumentAnalysis';
 import { persistence } from './lib/persistence';
-import { explainResults, chatWithAI, searchWithAI } from './services/gemini';
+import { explainResults, chatWithAI, searchWithAI, analyzeDocument } from './services/gemini';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -40,11 +41,13 @@ const SEV_MARK = {
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'analysis' | 'chat' | 'monitor'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'analysis' | 'chat' | 'monitor' | 'documents'>('dashboard');
   const [query, setQuery] = useState('');
   const [selectedDomain, setSelectedDomain] = useState('auto');
   const [analysisResult, setAnalysisResult] = useState<MasterResponse | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [docAnalysisResults, setDocAnalysisResults] = useState<any[]>([]);
+  const [isAnalyzingDoc, setIsAnalyzingDoc] = useState(false);
   const [explanation, setExplanation] = useState('');
   const [isExplaining, setIsExplaining] = useState(false);
   const [isFusionMode, setIsFusionMode] = useState(false);
@@ -132,10 +135,48 @@ export default function App() {
   ];
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    for (const file of Array.from(files)) {
+    // If it's for document analysis (PDF/TXT)
+    if (file.type === "application/pdf" || file.type === "text/plain") {
+      setIsAnalyzingDoc(true);
+      setActiveTab('documents');
+
+      try {
+        let text = "";
+        if (file.type === "application/pdf") {
+          const arrayBuffer = await file.arrayBuffer();
+          const pdfjsLib = (window as any).pdfjsLib;
+          pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          let fullText = "";
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            const strings = content.items.map((item: any) => item.str);
+            fullText += strings.join(" ") + "\n";
+          }
+          text = fullText;
+        } else {
+          text = await file.text();
+        }
+
+        const results = await analyzeDocument(text, language);
+        if (results) {
+          setDocAnalysisResults(results);
+        }
+      } catch (error) {
+        console.error("Document Analysis Error:", error);
+      } finally {
+        setIsAnalyzingDoc(false);
+      }
+      return;
+    }
+
+    // Default attachment logic for images
+    for (const file of Array.from(e.target.files || [])) {
       const reader = new FileReader();
       reader.onload = async (event) => {
         const base64 = (event.target?.result as string).split(',')[1];
@@ -146,7 +187,7 @@ export default function App() {
         }]);
       };
       
-      if (file.type.startsWith('image/') || file.type === 'text/plain' || file.type === 'application/pdf') {
+      if (file.type.startsWith('image/')) {
         reader.readAsDataURL(file);
       }
     }
@@ -256,6 +297,12 @@ export default function App() {
               label="Dashboard" 
               active={activeTab === 'dashboard'} 
               onClick={() => setActiveTab('dashboard')} 
+            />
+            <NavItem 
+              icon={FileText} 
+              label="Documents" 
+              active={activeTab === 'documents'} 
+              onClick={() => setActiveTab('documents')} 
             />
             <NavItem 
               icon={Search} 
@@ -813,6 +860,31 @@ export default function App() {
                       </div>
                     </div>
                   </div>
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'documents' && (
+              <motion.div 
+                key="documents"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="max-w-6xl mx-auto"
+              >
+                <div className="p-6 rounded-xl border border-[#192033] bg-[#0c0f1a] space-y-8">
+                  <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-[#192033] rounded-2xl hover:border-primary/50 transition-all cursor-pointer group"
+                       onClick={() => fileInputRef.current?.click()}>
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                      <Plus className="w-8 h-8 text-primary" />
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-2">Upload Document for Tensor Analysis</h3>
+                    <p className="text-sm text-muted-foreground text-center max-w-md">
+                      Drag and drop your PDF or TXT files here, or click to browse. PRD-AGI will extract causal claims and project them into the tensor manifold.
+                    </p>
+                  </div>
+
+                  <DocumentAnalysis results={docAnalysisResults} isLoading={isAnalyzingDoc} />
                 </div>
               </motion.div>
             )}
