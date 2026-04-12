@@ -11,6 +11,17 @@ const getAI = () => {
   return new GoogleGenAI({ apiKey });
 };
 
+function formatAIError(error: any) {
+  const msg = error.message || String(error);
+  if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota")) {
+    return "⚠️ API Quota ပြည့်သွားပါပြီ။ ခဏစောင့်ပြီးမှ ပြန်လည်ကြိုးစားပေးပါခင်ဗျာ။ (Please wait a moment before trying again.)";
+  }
+  if (msg.includes("API key")) {
+    return "Error: Gemini API Key is missing or invalid. Please check your environment settings.";
+  }
+  return `Error: ${msg}`;
+}
+
 export async function explainResults(queryResult: any, context: string = "") {
   try {
     const ai = getAI();
@@ -50,7 +61,7 @@ export async function explainResults(queryResult: any, context: string = "") {
     return response.text || "No explanation could be generated at this time.";
   } catch (error: any) {
     console.error("Gemini Explain Error:", error);
-    return `Analysis Error: ${error.message || "Unknown error occurred."}`;
+    return formatAIError(error);
   }
 }
 
@@ -104,9 +115,6 @@ export async function chatWithAI(message: string, history: any[] = [], attachmen
     return response.text || "I'm sorry, I couldn't process that request.";
   } catch (error: any) {
     console.error("Gemini Chat Error:", error);
-    if (error.message?.includes("API key")) {
-      return "Error: Gemini API Key is missing or invalid. Please check your environment settings.";
-    }
-    return `Chat Error: ${error.message || "I'm having trouble connecting to the neural core."}`;
+    return formatAIError(error);
   }
 }
