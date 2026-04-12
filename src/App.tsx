@@ -3,7 +3,8 @@ import {
   Activity, Shield, Scale, TrendingUp, BookOpen, Heart, 
   Search, MessageSquare, Mic, Send, Trash2, Info, 
   AlertTriangle, CheckCircle2, ChevronRight, BarChart3,
-  Cpu, Zap, Brain, Settings
+  Cpu, Zap, Brain, Settings, Volume2, Download, UserCheck,
+  Stethoscope, ShieldCheck, Plus, Paperclip, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
@@ -53,6 +54,8 @@ export default function App() {
   const [chatInput, setChatInput] = useState('');
   const [isChatting, setIsChatting] = useState(false);
   const [isSearchMode, setIsSearchMode] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [currentPersona, setCurrentPersona] = useState('general');
   const [attachments, setAttachments] = useState<{ name: string, mimeType: string, data: string }[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -61,6 +64,56 @@ export default function App() {
     localStorage.setItem('prd_agi_chat_history', JSON.stringify(chatHistory));
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory]);
+
+  const startListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Speech recognition is not supported in this browser.");
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'my-MM'; // Default to Myanmar, can fallback to en-US if needed
+    recognition.onstart = () => setIsListening(true);
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setChatInput(transcript);
+    };
+    recognition.onend = () => setIsListening(false);
+    recognition.start();
+  };
+
+  const speak = (text: string) => {
+    const synth = window.speechSynthesis;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US';
+    synth.speak(utterance);
+  };
+
+  const exportChat = () => {
+    const content = chatHistory.map(h => `${h.role === 'user' ? 'USER' : 'AI'}: ${h.content}`).join('\n\n');
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `prd-agi-chat-${new Date().toISOString().slice(0,10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const personas = [
+    { id: 'general', label: 'General', icon: Brain },
+    { id: 'medical', label: 'Medical', icon: Stethoscope },
+    { id: 'legal', label: 'Legal', icon: Scale },
+    { id: 'financial', label: 'Financial', icon: TrendingUp },
+    { id: 'security', label: 'Security', icon: ShieldCheck },
+  ];
+
+  const suggestedPrompts = [
+    "Explain the causality of current market trends.",
+    "Analyze the neural mapping of medical diagnostics.",
+    "What are the legal implications of AI autonomy?",
+    "Check system security vulnerabilities.",
+  ];
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -117,41 +170,6 @@ export default function App() {
     }
   };
 
-  const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef<any>(null);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = false;
-
-      recognitionRef.current.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setChatInput(transcript);
-        setIsListening(false);
-      };
-
-      recognitionRef.current.onerror = () => {
-        setIsListening(false);
-      };
-
-      recognitionRef.current.onend = () => {
-        setIsListening(false);
-      };
-    }
-  }, []);
-
-  const toggleListening = () => {
-    if (isListening) {
-      recognitionRef.current?.stop();
-    } else {
-      recognitionRef.current?.start();
-      setIsListening(true);
-    }
-  };
-
   const handleChat = async () => {
     if (!chatInput.trim() && attachments.length === 0) return;
     try {
@@ -170,7 +188,7 @@ export default function App() {
       if (isSearchMode) {
         response = await searchWithAI(msg, chatHistory);
       } else {
-        response = await chatWithAI(msg, chatHistory, currentAttachments);
+        response = await chatWithAI(msg, chatHistory, currentAttachments, currentPersona);
       }
       
       setChatHistory(prev => [...prev, { role: 'ai', content: response }]);
@@ -453,28 +471,81 @@ export default function App() {
                       <p className="text-xs text-muted-foreground">Causal reasoning enabled</p>
                     </div>
                   </div>
-                  <button 
-                    onClick={() => setChatHistory([])}
-                    className="p-2 text-muted-foreground hover:text-red-400 transition-colors"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={exportChat}
+                      className="p-2 text-muted-foreground hover:text-blue-400 transition-colors"
+                      title="Export Chat History"
+                    >
+                      <Download className="w-5 h-5" />
+                    </button>
+                    <div className="flex bg-[#192033] p-1 rounded-xl border border-white/5 mx-2">
+                      {personas.map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => setCurrentPersona(p.id)}
+                          className={cn(
+                            "p-2 rounded-lg transition-all flex items-center gap-2",
+                            currentPersona === p.id ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-muted-foreground hover:text-white"
+                          )}
+                          title={p.label}
+                        >
+                          <p.icon className="w-4 h-4" />
+                          {currentPersona === p.id && <span className="text-[10px] font-bold hidden md:block">{p.label}</span>}
+                        </button>
+                      ))}
+                    </div>
+                    <button 
+                      onClick={() => setChatHistory([])}
+                      className="p-2 text-muted-foreground hover:text-red-400 transition-colors"
+                      title="Clear Chat"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-4 flex flex-col">
                   {chatHistory.length === 0 && (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center opacity-40">
-                      <MessageSquare className="w-12 h-12 mb-4" />
-                      <p>Start a conversation with the PRD-AGI engine.</p>
-                      <p className="text-sm">Ask about symptoms, legal risks, or market trends.</p>
+                    <div className="flex-1 flex flex-col items-center justify-center text-center">
+                      <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 border border-primary/20">
+                        <Brain className="w-8 h-8 text-primary animate-pulse" />
+                      </div>
+                      <h3 className="text-lg font-bold text-white mb-2">Neural Core Ready</h3>
+                      <p className="text-sm text-muted-foreground max-w-xs mb-6">
+                        Initiate a causal inquiry or upload data for deep tensor analysis.
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 w-full max-w-md">
+                        {suggestedPrompts.map((p, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setChatInput(p)}
+                            className="p-3 text-xs text-left rounded-xl bg-[#192033] hover:bg-[#252d45] border border-white/5 text-muted-foreground hover:text-white transition-all"
+                          >
+                            {p}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
                   {chatHistory.map((msg, i) => (
-                    <div key={i} className={msg.role === 'user' ? 'chat-user' : 'chat-ai'}>
+                    <div key={i} className={cn(
+                      msg.role === 'user' ? 'chat-user' : 'chat-ai',
+                      "relative group"
+                    )}>
                       {msg.role === 'ai' ? (
-                        <div className="prose prose-invert prose-sm max-w-none">
-                          <ReactMarkdown>{msg.content}</ReactMarkdown>
-                        </div>
+                        <>
+                          <div className="prose prose-invert prose-sm max-w-none">
+                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                          </div>
+                          <button 
+                            onClick={() => speak(msg.content)}
+                            className="absolute -right-8 top-0 p-1 text-muted-foreground hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Speak"
+                          >
+                            <Volume2 className="w-4 h-4" />
+                          </button>
+                        </>
                       ) : (
                         msg.content
                       )}
@@ -511,6 +582,16 @@ export default function App() {
                       accept="image/*,text/plain,application/pdf"
                     />
                     <button 
+                      onClick={startListening}
+                      className={cn(
+                        "p-3 rounded-xl transition-all duration-200",
+                        isListening ? "bg-red-500/20 text-red-400 border border-red-500/50 animate-pulse" : "bg-[#192033] hover:bg-[#252d45] text-muted-foreground"
+                      )}
+                      title="Voice Input"
+                    >
+                      <Mic className="w-5 h-5" />
+                    </button>
+                    <button 
                       onClick={() => setIsSearchMode(!isSearchMode)}
                       className={cn(
                         "p-3 rounded-xl transition-all duration-200 flex items-center gap-2",
@@ -526,16 +607,7 @@ export default function App() {
                       className="p-3 rounded-xl bg-[#192033] hover:bg-[#252d45] text-muted-foreground transition-all"
                       title="Upload Files (Images, Text, PDF)"
                     >
-                      <Zap className="w-5 h-5" />
-                    </button>
-                    <button 
-                      onClick={toggleListening}
-                      className={cn(
-                        "p-3 rounded-xl transition-all duration-200",
-                        isListening ? "bg-red-500/20 text-red-400 animate-pulse border border-red-500/50" : "bg-[#192033] hover:bg-[#252d45] text-muted-foreground"
-                      )}
-                    >
-                      <Mic className="w-5 h-5" />
+                      <Paperclip className="w-5 h-5" />
                     </button>
                     <input 
                       type="text" 
