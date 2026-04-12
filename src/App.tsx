@@ -15,6 +15,7 @@ import { CurvatureDashboard } from './components/CurvatureDashboard';
 import { CausalFlowDiagram } from './components/CausalFlowDiagram';
 import { JourneyPanel } from './components/JourneyPanel';
 import { PatthanaHeatmap } from './components/PatthanaHeatmap';
+import { QuantumInterference } from './components/QuantumInterference';
 import { persistence } from './lib/persistence';
 import { explainResults, chatWithAI, searchWithAI } from './services/gemini';
 
@@ -784,6 +785,8 @@ export default function App() {
                       dominantPaccayaIndex={analysisResult?.dominantPaccaya?.index || 0}
                       confidence={analysisResult?.results[0]?.confidence || 0.5}
                     />
+
+                    <QuantumInterference />
 
                     <div className="p-6 rounded-xl border border-[#192033] bg-[#0c0f1a]">
                       <h3 className="text-lg font-semibold mb-4">Active Processes</h3>
