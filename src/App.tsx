@@ -59,6 +59,7 @@ export default function App() {
   const [isChatting, setIsChatting] = useState(false);
   const [isSearchMode, setIsSearchMode] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [language, setLanguage] = useState<'en' | 'my'>('en');
   const [currentPersona, setCurrentPersona] = useState('general');
   const [attachments, setAttachments] = useState<{ name: string, mimeType: string, data: string }[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -87,7 +88,7 @@ export default function App() {
       return;
     }
     const recognition = new SpeechRecognition();
-    recognition.lang = 'my-MM'; // Default to Myanmar, can fallback to en-US if needed
+    recognition.lang = language === 'my' ? 'my-MM' : 'en-US';
     recognition.onstart = () => setIsListening(true);
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
@@ -100,7 +101,7 @@ export default function App() {
   const speak = (text: string) => {
     const synth = window.speechSynthesis;
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US';
+    utterance.lang = language === 'my' ? 'my' : 'en-US';
     synth.speak(utterance);
   };
 
@@ -191,7 +192,7 @@ export default function App() {
     if (!analysisResult) return;
     try {
       setIsExplaining(true);
-      const text = await explainResults(analysisResult);
+      const text = await explainResults(analysisResult, "", language);
       setExplanation(text);
       setIsExplaining(false);
     } catch (error) {
@@ -221,9 +222,9 @@ export default function App() {
       
       let response;
       if (isSearchMode) {
-        response = await searchWithAI(msg, chatHistory);
+        response = await searchWithAI(msg, chatHistory, language);
       } else {
-        response = await chatWithAI(msg, chatHistory, currentAttachments, currentPersona);
+        response = await chatWithAI(msg, chatHistory, currentAttachments, currentPersona, language);
       }
       
       const aiMsg = { role: 'ai' as const, content: response, timestamp: Date.now() };
@@ -587,6 +588,17 @@ export default function App() {
                       <Download className="w-5 h-5" />
                     </button>
                     <div className="flex bg-[#192033] p-1 rounded-xl border border-white/5 mx-2">
+                      <button 
+                        onClick={() => setLanguage(l => l === 'en' ? 'my' : 'en')}
+                        className={cn(
+                          "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                          language === 'my' ? "bg-primary text-white" : "text-muted-foreground hover:text-white"
+                        )}
+                      >
+                        {language === 'en' ? '🇺🇸 EN' : '🇲🇲 MY'}
+                      </button>
+                    </div>
+                    <div className="flex bg-[#192033] p-1 rounded-xl border border-white/5 mx-2">
                       {personas.map(p => (
                         <button
                           key={p.id}
@@ -688,16 +700,19 @@ export default function App() {
                       onChange={handleFileUpload}
                       accept="image/*,text/plain,application/pdf"
                     />
-                    <button 
-                      onClick={startListening}
-                      className={cn(
-                        "p-3 rounded-xl transition-all duration-200",
-                        isListening ? "bg-red-500/20 text-red-400 border border-red-500/50 animate-pulse" : "bg-[#192033] hover:bg-[#252d45] text-muted-foreground"
-                      )}
-                      title="Voice Input"
-                    >
-                      <Mic className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {isListening && <VoiceWaveform />}
+                      <button 
+                        onClick={startListening}
+                        className={cn(
+                          "p-3 rounded-xl transition-all duration-200",
+                          isListening ? "bg-red-500/20 text-red-400 border border-red-500/50 animate-pulse" : "bg-[#192033] hover:bg-[#252d45] text-muted-foreground"
+                        )}
+                        title="Voice Input"
+                      >
+                        <Mic className="w-5 h-5" />
+                      </button>
+                    </div>
                     <button 
                       onClick={() => setIsSearchMode(!isSearchMode)}
                       className={cn(
@@ -804,6 +819,21 @@ export default function App() {
           </AnimatePresence>
         </div>
       </main>
+    </div>
+  );
+}
+
+function VoiceWaveform() {
+  return (
+    <div className="flex items-center gap-1 h-4 px-2">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <motion.div
+          key={i}
+          animate={{ height: [4, 16, 4] }}
+          transition={{ repeat: Infinity, duration: 0.5, delay: i * 0.1 }}
+          className="w-1 bg-primary rounded-full"
+        />
+      ))}
     </div>
   );
 }

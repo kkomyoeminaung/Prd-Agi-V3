@@ -131,8 +131,9 @@ async function callCerebras(messages: any[]) {
   return data.choices[0].message.content;
 }
 
-export async function searchWithAI(message: string, history: any[] = []) {
+export async function searchWithAI(message: string, history: any[] = [], language: 'en' | 'my' = 'en') {
   try {
+    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေပါ။ သို့သော် technical terms (κ, tensor, PRD) များကို English ဖြင့် ထားပါ။" : "";
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: [
@@ -143,7 +144,7 @@ export async function searchWithAI(message: string, history: any[] = []) {
         { role: 'user', parts: [{ text: message }] }
       ],
       config: {
-        systemInstruction: `${PRD_IDENTITY}\nYou are PRD-AGI v3 with Web Access. Search the internet to provide accurate, up-to-date information grounded in causal reasoning. Always cite your findings.`,
+        systemInstruction: `${PRD_IDENTITY}\nYou are PRD-AGI v3 with Web Access. Search the internet to provide accurate, up-to-date information grounded in causal reasoning. Always cite your findings.${myanmarInstruction}`,
         tools: [{ googleSearch: {} }]
       }
     });
@@ -175,7 +176,7 @@ function formatAIError(error: any) {
   return "⚠️ စနစ်အတွင်း အနည်းငယ် ကြန့်ကြာမှု ရှိနေပါသည်။ ခဏစောင့်ပေးပါ။";
 }
 
-export async function explainResults(queryResult: any, context: string = "") {
+export async function explainResults(queryResult: any, context: string = "", language: 'en' | 'my' = 'en') {
   try {
     const domain = queryResult.domain;
     const topResults = queryResult.results.slice(0, 3).map((r: any) => ({
@@ -185,11 +186,14 @@ export async function explainResults(queryResult: any, context: string = "") {
       riskLevel: r.riskLevel,
     }));
 
+    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေပါ။ သို့သော် technical terms (κ, tensor, PRD) များကို English ဖြင့် ထားပါ။" : "";
+
     const systemInstruction = `
       ${PRD_IDENTITY}
       You are PRD-AGI Master, a specialized AI assistant using Causal Relational Tensors.
       Provide clear, professional, and compassionate explanations of analysis results.
       Always include a disclaimer that this is AI-assisted analysis and they should consult a human professional.
+      ${myanmarInstruction}
     `;
 
     const prompt = `
@@ -220,8 +224,9 @@ export async function explainResults(queryResult: any, context: string = "") {
   }
 }
 
-export async function chatWithAI(message: string, history: any[] = [], attachments: any[] = [], persona: string = "general") {
+export async function chatWithAI(message: string, history: any[] = [], attachments: any[] = [], persona: string = "general", language: 'en' | 'my' = 'en') {
   try {
+    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေပါ။ သို့သော် technical terms (κ, tensor, PRD) များကို English ဖြင့် ထားပါ။" : "";
     let systemInstruction = `
       ${PRD_IDENTITY}
       Your primary function is to analyze complex relationships using the Relational Physics framework: R(A,B)=[C,W,L,T,U,D].
@@ -239,6 +244,7 @@ export async function chatWithAI(message: string, history: any[] = [], attachmen
       4. HALLUCINATION CONTROL: High curvature (κ) indicates inconsistency. Always prioritize truth-first transitions.
       5. SAFETY: For sensitive domains (Medical, Legal, Financial), provide the analysis first, followed by a mandatory professional consultation disclaimer.
       6. LANGUAGE: Respond in the language used by the user (Myanmar or English).
+      ${myanmarInstruction}
     `;
 
     if (persona === "medical") {
