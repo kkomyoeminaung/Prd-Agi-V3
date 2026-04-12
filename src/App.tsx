@@ -13,6 +13,8 @@ import { twMerge } from 'tailwind-merge';
 import { engine, MasterResponse, QueryResult, FusionResponse } from './lib/master-engine';
 import { CurvatureDashboard } from './components/CurvatureDashboard';
 import { CausalFlowDiagram } from './components/CausalFlowDiagram';
+import { JourneyPanel } from './components/JourneyPanel';
+import { persistence } from './lib/persistence';
 import { explainResults, chatWithAI, searchWithAI } from './services/gemini';
 
 function cn(...inputs: ClassValue[]) {
@@ -45,15 +47,11 @@ export default function App() {
   const [isExplaining, setIsExplaining] = useState(false);
   const [isFusionMode, setIsFusionMode] = useState(false);
   const [fusionResult, setFusionResult] = useState<FusionResponse | null>(null);
+  const [sessionMessage, setSessionMessage] = useState<string | null>(null);
+  const [showSessionMessage, setShowSessionMessage] = useState(false);
   
   const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', content: string}[]>(() => {
-    try {
-      const saved = localStorage.getItem('prd_agi_chat_history');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      console.error("Failed to load chat history", e);
-      return [];
-    }
+    return persistence.loadChat().map(m => ({ role: m.role, content: m.content }));
   });
   const [chatInput, setChatInput] = useState('');
   const [isChatting, setIsChatting] = useState(false);
@@ -65,9 +63,20 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    localStorage.setItem('prd_agi_chat_history', JSON.stringify(chatHistory));
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory]);
+
+  useEffect(() => {
+    const lastKappa = persistence.getLastSessionKappa();
+    const trend = persistence.loadKappaTrend();
+    const currentKappa = trend.length > 0 ? trend[trend.length - 1].kappa : 0.45;
+    
+    if (trend.length > 0) {
+      setSessionMessage(`PRD remembers your last session: κ improved from ${lastKappa.toFixed(2)} to ${currentKappa.toFixed(2)}`);
+      setShowSessionMessage(true);
+      setTimeout(() => setShowSessionMessage(false), 8000);
+    }
+  }, []);
 
   const startListening = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -153,11 +162,19 @@ export default function App() {
         const result = await engine.fusionQuery(query);
         setFusionResult(result);
         setAnalysisResult(result);
+        persistence.trackKappa(result.kappa);
+        persistence.trackKeywords(query);
+        persistence.incrementOptSteps(4);
+        persistence.saveSessionEnd(result.kappa);
       } else {
         // Simulate some latency for "causal processing"
         await new Promise(r => setTimeout(r, 800));
         const result = engine.query(inputs, selectedDomain);
         setAnalysisResult(result);
+        persistence.trackKappa(result.kappa);
+        persistence.trackKeywords(query);
+        persistence.incrementOptSteps(1);
+        persistence.saveSessionEnd(result.kappa);
       }
       
       setActiveTab('analysis');
@@ -190,10 +207,14 @@ export default function App() {
       setChatInput('');
       setAttachments([]);
       
-      setChatHistory(prev => [...prev, { 
-        role: 'user', 
-        content: msg + (currentAttachments.length > 0 ? `\n\n[Attached: ${currentAttachments.map(a => a.name).join(', ')}]` : '') 
-      }]);
+      const userMsg = { 
+        role: 'user' as const, 
+        content: msg + (currentAttachments.length > 0 ? `\n\n[Attached: ${currentAttachments.map(a => a.name).join(', ')}]` : ''),
+        timestamp: Date.now()
+      };
+      setChatHistory(prev => [...prev, { role: userMsg.role, content: userMsg.content }]);
+      persistence.saveChat(userMsg);
+      persistence.trackKeywords(msg);
       setIsChatting(true);
       
       let response;
@@ -203,7 +224,9 @@ export default function App() {
         response = await chatWithAI(msg, chatHistory, currentAttachments, currentPersona);
       }
       
-      setChatHistory(prev => [...prev, { role: 'ai', content: response }]);
+      const aiMsg = { role: 'ai' as const, content: response, timestamp: Date.now() };
+      setChatHistory(prev => [...prev, { role: aiMsg.role, content: aiMsg.content }]);
+      persistence.saveChat(aiMsg);
       setIsChatting(false);
     } catch (error) {
       console.error("Chat Error:", error);
@@ -286,6 +309,23 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="max-w-5xl mx-auto space-y-8"
               >
+                <AnimatePresence>
+                  {showSessionMessage && sessionMessage && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="bg-primary/10 border border-primary/20 rounded-lg p-4 flex items-center gap-3 overflow-hidden"
+                    >
+                      <Info className="w-5 h-5 text-primary shrink-0" />
+                      <p className="text-sm font-medium text-primary">{sessionMessage}</p>
+                      <button onClick={() => setShowSessionMessage(false)} className="ml-auto">
+                        <X className="w-4 h-4 text-primary/60 hover:text-primary" />
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <StatCard label="Total Tensors" value="1,138" sub="+682 v3" icon={Cpu} />
                   <StatCard label="Active Domains" value="6" sub="Unified" icon={Brain} />
@@ -355,6 +395,8 @@ export default function App() {
                         <DomainCard key={key} domain={key} {...config} />
                       ))}
                     </div>
+
+                    <JourneyPanel />
                   </div>
 
                   <div className="space-y-6">
