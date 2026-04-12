@@ -17,7 +17,10 @@ import { JourneyPanel } from './components/JourneyPanel';
 import { PatthanaHeatmap } from './components/PatthanaHeatmap';
 import { QuantumInterference } from './components/QuantumInterference';
 import { DocumentAnalysis } from './components/DocumentAnalysis';
+import { MemoryBank, KnowledgeBase, DreamLogPanel } from './components/MemoryPanels';
 import { persistence } from './lib/persistence';
+import { prdDB } from './lib/db';
+import { DreamAgent } from './services/dreamAgent';
 import { explainResults, chatWithAI, searchWithAI, analyzeDocument } from './services/gemini';
 
 function cn(...inputs: ClassValue[]) {
@@ -41,7 +44,7 @@ const SEV_MARK = {
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'analysis' | 'chat' | 'monitor' | 'documents'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'analysis' | 'chat' | 'monitor' | 'documents' | 'memory'>('dashboard');
   const [query, setQuery] = useState('');
   const [selectedDomain, setSelectedDomain] = useState('auto');
   const [analysisResult, setAnalysisResult] = useState<MasterResponse | null>(null);
@@ -82,6 +85,9 @@ export default function App() {
       setShowSessionMessage(true);
       setTimeout(() => setShowSessionMessage(false), 8000);
     }
+
+    // Initialize Dream Agent
+    DreamAgent.init();
   }, []);
 
   const startListening = () => {
@@ -271,6 +277,15 @@ export default function App() {
       const aiMsg = { role: 'ai' as const, content: response, timestamp: Date.now() };
       setChatHistory(prev => [...prev, { role: aiMsg.role, content: aiMsg.content }]);
       persistence.saveChat(aiMsg);
+
+      // Save to IndexedDB for Feature 1 (Memory)
+      await prdDB.saveConversation({
+        query: msg,
+        response: response,
+        timestamp: Date.now(),
+        kappa: 0.1 // Placeholder
+      });
+
       setIsChatting(false);
     } catch (error) {
       console.error("Chat Error:", error);
@@ -303,6 +318,12 @@ export default function App() {
               label="Documents" 
               active={activeTab === 'documents'} 
               onClick={() => setActiveTab('documents')} 
+            />
+            <NavItem 
+              icon={Brain} 
+              label="Memory" 
+              active={activeTab === 'memory'} 
+              onClick={() => setActiveTab('memory')} 
             />
             <NavItem 
               icon={Search} 
@@ -885,6 +906,22 @@ export default function App() {
                   </div>
 
                   <DocumentAnalysis results={docAnalysisResults} isLoading={isAnalyzingDoc} />
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'memory' && (
+              <motion.div 
+                key="memory"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="max-w-7xl mx-auto"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <MemoryBank />
+                  <KnowledgeBase />
+                  <DreamLogPanel />
                 </div>
               </motion.div>
             )}

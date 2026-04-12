@@ -1,4 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
+import { prdDB } from "../lib/db";
+import { SearchService } from "./search";
 
 // Groq API Configuration
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
@@ -271,10 +273,28 @@ export async function analyzeDocument(text: string, language: 'en' | 'my' = 'en'
 
 export async function chatWithAI(message: string, history: any[] = [], attachments: any[] = [], persona: string = "general", language: 'en' | 'my' = 'en') {
   try {
+    // Feature 1 & 2: Context Injection
+    const [pastMemories, localKnowledge] = await Promise.all([
+      prdDB.searchConversations(message),
+      prdDB.searchKnowledge(message)
+    ]);
+
+    let contextString = "";
+    if (pastMemories.length > 0) {
+      contextString += "\n\nRELEVANT PAST MEMORIES:\n" + pastMemories.slice(0, 3).map(m => `Q: ${m.query}\nA: ${m.response}`).join("\n---\n");
+    }
+    if (localKnowledge.length > 0) {
+      contextString += "\n\nLOCAL KNOWLEDGE BASE:\n" + localKnowledge.map(k => `Source: ${k.source}\nContent: ${k.content}`).join("\n---\n");
+    }
+
     const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေပါ။ သို့သော် technical terms (κ, tensor, PRD) များကို English ဖြင့် ထားပါ။" : "";
     let systemInstruction = `
       ${PRD_IDENTITY}
       Your primary function is to analyze complex relationships using the Relational Physics framework: R(A,B)=[C,W,L,T,U,D].
+      
+      CONTEXTUAL AWARENESS:
+      Use the following retrieved context to inform your answer if relevant.
+      ${contextString}
       
       CORE MATHEMATICAL FOUNDATION:
       - Awareness Density: ρ_awareness = 1 / (1 + κ + S_causal)

@@ -1,0 +1,104 @@
+import { openDB, IDBPDatabase } from 'idb';
+
+export interface Conversation {
+  id?: number;
+  query: string;
+  response: string;
+  timestamp: number;
+  kappa?: number;
+}
+
+export interface KnowledgeChunk {
+  id?: number;
+  source: string; // filename or URL
+  content: string;
+  keywords: string[];
+  timestamp: number;
+}
+
+export interface DreamLog {
+  id?: number;
+  topic: string;
+  summary: string;
+  relevance: number;
+  timestamp: number;
+}
+
+class PRDDatabase {
+  private dbName = 'prd_agi_v3_db';
+  private version = 1;
+  private db: IDBPDatabase | null = null;
+
+  async getDB() {
+    if (this.db) return this.db;
+    this.db = await openDB(this.dbName, this.version, {
+      upgrade(db) {
+        if (!db.objectStoreNames.contains('conversations')) {
+          db.createObjectStore('conversations', { keyPath: 'id', autoIncrement: true });
+        }
+        if (!db.objectStoreNames.contains('knowledge')) {
+          db.createObjectStore('knowledge', { keyPath: 'id', autoIncrement: true });
+        }
+        if (!db.objectStoreNames.contains('dream_logs')) {
+          db.createObjectStore('dream_logs', { keyPath: 'id', autoIncrement: true });
+        }
+      },
+    });
+    return this.db;
+  }
+
+  // Feature 1: Conversations
+  async saveConversation(conv: Conversation) {
+    const db = await this.getDB();
+    return db.add('conversations', conv);
+  }
+
+  async getRecentConversations(limit = 20) {
+    const db = await this.getDB();
+    const tx = db.transaction('conversations', 'readonly');
+    const store = tx.objectStore('conversations');
+    const all = await store.getAll();
+    return all.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
+  }
+
+  async searchConversations(query: string) {
+    const db = await this.getDB();
+    const all = await db.getAll('conversations');
+    const q = query.toLowerCase();
+    return all.filter(c => 
+      c.query.toLowerCase().includes(q) || 
+      c.response.toLowerCase().includes(q)
+    );
+  }
+
+  // Feature 2: Knowledge Base
+  async saveKnowledgeChunk(chunk: KnowledgeChunk) {
+    const db = await this.getDB();
+    return db.add('knowledge', chunk);
+  }
+
+  async searchKnowledge(query: string) {
+    const db = await this.getDB();
+    const all = await db.getAll('knowledge');
+    const keywords = query.toLowerCase().split(/\s+/).filter(k => k.length > 2);
+    
+    return all.filter(chunk => {
+      const content = chunk.content.toLowerCase();
+      return keywords.some(k => content.includes(k) || chunk.keywords.includes(k));
+    }).slice(0, 5);
+  }
+
+  // Feature 3: Dream Logs
+  async saveDreamLog(log: DreamLog) {
+    const db = await this.getDB();
+    return db.add('dream_logs', log);
+  }
+
+  async getDreamLogs(limit = 50) {
+    const db = await this.getDB();
+    const all = await db.getAll('dream_logs');
+    return all.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
+  }
+}
+
+export const prdDB = new PRDDatabase();
