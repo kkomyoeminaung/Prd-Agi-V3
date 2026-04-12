@@ -1,25 +1,25 @@
-// DeepSeek API Configuration
-const DEEPSEEK_ENDPOINT = "https://api.deepseek.com/v1/chat/completions";
+// Cerebras API Configuration
+const CEREBRAS_ENDPOINT = "https://api.cerebras.ai/v1/chat/completions";
 
 const getApiKey = () => {
-  const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
+  const apiKey = import.meta.env.VITE_CEREBRAS_API_KEY;
   if (!apiKey || apiKey === "undefined") {
-    throw new Error("VITE_DEEPSEEK_API_KEY is not configured.");
+    throw new Error("VITE_CEREBRAS_API_KEY is not configured.");
   }
   return apiKey;
 };
 
-async function callDeepSeek(messages: any[]) {
+async function callCerebras(messages: any[]) {
   const apiKey = getApiKey();
   
-  const response = await fetch(DEEPSEEK_ENDPOINT, {
+  const response = await fetch(CEREBRAS_ENDPOINT, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: "deepseek-chat",
+      model: "llama-3.3-70b",
       messages: messages,
       temperature: 0.7,
       max_tokens: 2048
@@ -28,7 +28,7 @@ async function callDeepSeek(messages: any[]) {
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(errorData.error?.message || "DeepSeek API Request Failed");
+    throw new Error(errorData.error?.message || "Cerebras API Request Failed");
   }
 
   const data = await response.json();
@@ -41,7 +41,7 @@ function formatAIError(error: any) {
     return "⚠️ API Quota ပြည့်သွားပါပြီ။ ခဏစောင့်ပြီးမှ ပြန်လည်ကြိုးစားပေးပါခင်ဗျာ။ (Please wait a moment before trying again.)";
   }
   if (msg.includes("API key")) {
-    return "Error: DeepSeek API Key is missing or invalid. Please check your environment settings.";
+    return "Error: Cerebras API Key is missing or invalid. Please check your environment settings.";
   }
   return `Error: ${msg}`;
 }
@@ -78,9 +78,9 @@ export async function explainResults(queryResult: any, context: string = "") {
       { role: "user", content: prompt }
     ];
 
-    return await callDeepSeek(messages);
+    return await callCerebras(messages);
   } catch (error: any) {
-    console.error("DeepSeek Explain Error:", error);
+    console.error("Cerebras Explain Error:", error);
     return formatAIError(error);
   }
 }
@@ -94,7 +94,7 @@ export async function chatWithAI(message: string, history: any[] = [], attachmen
       If the user asks about medical, legal, or financial issues, provide analysis based on causal logic but always advise professional consultation.
     `;
 
-    // DeepSeek is text-only, so we notify about attachments if present
+    // Cerebras is text-only, so we notify about attachments if present
     let finalMessage = message;
     if (attachments.length > 0) {
       finalMessage += "\n\n(Note: User provided attachments which are currently not supported in text-only mode)";
@@ -109,9 +109,9 @@ export async function chatWithAI(message: string, history: any[] = [], attachmen
       { role: "user", content: finalMessage }
     ];
 
-    return await callDeepSeek(messages);
+    return await callCerebras(messages);
   } catch (error: any) {
-    console.error("DeepSeek Chat Error:", error);
+    console.error("Cerebras Chat Error:", error);
     return formatAIError(error);
   }
 }
