@@ -316,6 +316,57 @@ export async function refineResponse(originalQuery: string, originalResponse: st
   }
 }
 
+export async function councilConsensus(query: string, context: string, language: 'en' | 'my' = 'en') {
+  try {
+    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေပါ။ သို့သော် technical terms (κ, tensor, PRD) များကို English ဖြင့် ထားပါ။" : "";
+    
+    const systemInstruction = `
+      ${PRD_IDENTITY}
+      You are the Council of Paccaya. You must simulate a debate between 3 specialized agents:
+      1. The Logician (Focuses on Paccaya weights and logical structure)
+      2. The Empiricist (Focuses on evidence from Knowledge Base and Search)
+      3. The Intuitionist (Focuses on holistic patterns and awareness density)
+      
+      Debate the query: "${query}"
+      Context: ${context}
+      
+      After the debate, provide a synthesized Final Consensus that minimizes logical curvature (κ).
+      Format your output as:
+      [DEBATE LOG]
+      ... (brief debate summary)
+      [FINAL CONSENSUS]
+      ... (the actual answer)
+      [KAPPA]
+      (number between 0-1)
+      ${myanmarInstruction}
+    `;
+
+    const messages = [
+      { role: "system", content: systemInstruction },
+      { role: "user", content: query }
+    ];
+
+    let responseText;
+    if (GROQ_KEYS.length > 0) {
+      responseText = await callGroq(messages);
+    } else {
+      responseText = await callCerebras(messages);
+    }
+
+    const kappaMatch = responseText.match(/\[KAPPA\]\s*([\d.]+)/);
+    const consensusMatch = responseText.match(/\[FINAL CONSENSUS\]\s*([\s\S]*?)(?=\[KAPPA\]|$)/);
+    
+    return {
+      fullText: responseText,
+      consensus: consensusMatch ? consensusMatch[1].trim() : responseText,
+      kappa: kappaMatch ? parseFloat(kappaMatch[1]) : 0.15
+    };
+  } catch (error) {
+    console.error("Council Error:", error);
+    return null;
+  }
+}
+
 export async function chatWithAI(message: string, history: any[] = [], attachments: any[] = [], persona: string = "general", language: 'en' | 'my' = 'en') {
   try {
     // Feature 1 & 2: Context Injection

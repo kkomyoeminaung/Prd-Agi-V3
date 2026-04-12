@@ -106,6 +106,12 @@ class PRDDatabase {
     }).slice(0, 5);
   }
 
+  async getKnowledge(limit = 50) {
+    const db = await this.getDB();
+    const all = await db.getAll('knowledge');
+    return all.slice(0, limit);
+  }
+
   // Feature 3: Dream Logs
   async saveDreamLog(log: DreamLog) {
     const db = await this.getDB();

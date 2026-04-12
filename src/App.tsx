@@ -17,12 +17,13 @@ import { JourneyPanel } from './components/JourneyPanel';
 import { PatthanaHeatmap } from './components/PatthanaHeatmap';
 import { QuantumInterference } from './components/QuantumInterference';
 import { DocumentAnalysis } from './components/DocumentAnalysis';
+import { CausalGraph } from './components/CausalGraph';
 import { MemoryBank, KnowledgeBase, DreamLogPanel, CausalPlasticity, SystemHealth, SelfRefinementLog, ValidationDashboard, KnowledgeTransfer, LearningDashboard, MetaLearningProgress } from './components/MemoryPanels';
 import { persistence } from './lib/persistence';
 import { prdDB } from './lib/db';
 import { DreamAgent } from './services/dreamAgent';
 import { coreEngine } from './services/coreEngine';
-import { explainResults, chatWithAI, searchWithAI, analyzeDocument, refineResponse } from './services/gemini';
+import { explainResults, chatWithAI, searchWithAI, analyzeDocument, refineResponse, councilConsensus } from './services/gemini';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -270,10 +271,24 @@ export default function App() {
       setIsChatting(true);
       
       let response;
+      let kappa = 0.15;
+
       if (isSearchMode) {
         response = await searchWithAI(msg, chatHistory, language);
       } else {
-        response = await chatWithAI(msg, chatHistory, currentAttachments, currentPersona, language);
+        // Feature 12: Multi-Agent Council Consensus for complex queries
+        if (msg.length > 50 || msg.includes('?') || msg.includes('explain')) {
+          const context = await prdDB.searchKnowledge(msg);
+          const council = await councilConsensus(msg, context.map(k => k.topic).join(', '), language);
+          if (council) {
+            response = council.consensus;
+            kappa = council.kappa;
+          } else {
+            response = await chatWithAI(msg, chatHistory, currentAttachments, currentPersona, language);
+          }
+        } else {
+          response = await chatWithAI(msg, chatHistory, currentAttachments, currentPersona, language);
+        }
       }
       
       // Feature 6: Self-Refinement
@@ -281,6 +296,7 @@ export default function App() {
       let finalResponse = response;
       if (refinement && refinement.improvementScore > 0.2) {
         finalResponse = refinement.refinedResponse;
+        kappa = refinement.curvature;
         await prdDB.saveRefinement({
           query: msg,
           original: response,
@@ -299,11 +315,11 @@ export default function App() {
         query: msg,
         response: finalResponse,
         timestamp: Date.now(),
-        kappa: refinement?.curvature || 0.1
+        kappa: kappa
       });
 
       // Feature 4 & 9: Online Learning (Update Weights)
-      await coreEngine.updateWeights('auto', refinement?.curvature || 0.15);
+      await coreEngine.updateWeights('auto', kappa);
 
       // Feature 7: Periodic Validation
       if (chatHistory.length % 10 === 0) {
@@ -956,6 +972,7 @@ export default function App() {
                     <MetaLearningProgress />
                   </div>
                   <div className="space-y-6">
+                    <CausalGraph />
                     <DreamLogPanel />
                     <KnowledgeTransfer />
                   </div>
