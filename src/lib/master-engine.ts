@@ -37,6 +37,9 @@ export interface MasterResponse {
   summary: any;
   disclaimer: string;
   dominantPaccaya?: { index: number; name: string; weight: number };
+  kappa: number;
+  entropy: number;
+  awareness: number;
 }
 
 class BaseKB {
@@ -211,6 +214,11 @@ export class MasterEngine {
     // 3. Get dominant Paccaya for this query
     const dominant = plasticity.getDominantPaccaya(contextVector);
 
+    // 4. Calculate Aggregate Metrics
+    const avgK = results.length > 0 ? results.reduce((acc, r) => acc + r.tensor.K, 0) / results.length : 0.1;
+    const avgU = results.length > 0 ? results.reduce((acc, r) => acc + r.tensor.U, 0) / results.length : 0.05;
+    const awareness = 1 / (1 + avgK + avgU);
+
     if (domain !== "auto") {
       label = this.getLabel(domain);
     } else if (results.length > 0) {
@@ -225,7 +233,10 @@ export class MasterEngine {
       count: results.length,
       summary: this.summarize(results),
       disclaimer: DISCLAIMERS[domain] || DISCLAIMERS.general,
-      dominantPaccaya: dominant
+      dominantPaccaya: dominant,
+      kappa: Number(avgK.toFixed(4)),
+      entropy: Number(avgU.toFixed(4)),
+      awareness: Number(awareness.toFixed(4))
     };
   }
 

@@ -11,6 +11,7 @@ import ReactMarkdown from 'react-markdown';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { engine, MasterResponse, QueryResult } from './lib/master-engine';
+import { CurvatureDashboard } from './components/CurvatureDashboard';
 import { explainResults, chatWithAI, searchWithAI } from './services/gemini';
 
 function cn(...inputs: ClassValue[]) {
@@ -696,30 +697,11 @@ export default function App() {
                   </div>
 
                   <div className="space-y-8">
-                    <div className="p-6 rounded-xl border border-[#192033] bg-[#0c0f1a]">
-                      <h3 className="text-lg font-semibold mb-4">Neural Engine Load</h3>
-                      <div className="flex items-center justify-center py-10">
-                        <div className="relative w-40 h-40">
-                          <svg className="w-full h-full" viewBox="0 0 100 100">
-                            <circle 
-                              cx="50" cy="50" r="45" 
-                              fill="none" stroke="#111827" strokeWidth="8" 
-                            />
-                            <circle 
-                              cx="50" cy="50" r="45" 
-                              fill="none" stroke="var(--primary)" strokeWidth="8" 
-                              strokeDasharray="283" strokeDashoffset="70"
-                              strokeLinecap="round"
-                              className="animate-pulse"
-                            />
-                          </svg>
-                          <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className="text-3xl font-bold">75%</span>
-                            <span className="text-[10px] text-muted-foreground uppercase">Optimized</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    <CurvatureDashboard 
+                      currentKappa={analysisResult?.kappa || 0.1}
+                      awareness={analysisResult?.awareness || 0.85}
+                      dominantPaccaya={analysisResult?.dominantPaccaya}
+                    />
 
                     <div className="p-6 rounded-xl border border-[#192033] bg-[#0c0f1a]">
                       <h3 className="text-lg font-semibold mb-4">Active Processes</h3>
