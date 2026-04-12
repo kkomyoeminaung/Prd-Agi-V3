@@ -28,6 +28,19 @@ export interface QueryResult {
   dominantPaccaya?: { index: number; name: string; weight: number };
 }
 
+export interface CausalLink {
+  source: string;
+  target: string;
+  sourceDomain: string;
+  targetDomain: string;
+  strength: number;
+}
+
+export interface FusionResponse extends MasterResponse {
+  fusedResults: QueryResult[];
+  links: CausalLink[];
+}
+
 export interface MasterResponse {
   domain: string;
   inputs: string[];
@@ -274,6 +287,61 @@ export class MasterEngine {
       education: this.educationKB.stats(),
       security: this.securityKB.stats(),
       mental: this.mentalKB.stats(),
+    };
+  }
+
+  async fusionQuery(query: string, domainWeights: Record<string, number> = {}): Promise<FusionResponse> {
+    const domains = ["medical", "legal", "financial", "education", "security", "mental"];
+    const defaultWeights: Record<string, number> = {
+      medical: 1.0, legal: 1.0, financial: 1.0, education: 1.0, security: 1.0, mental: 1.0
+    };
+    const weights = { ...defaultWeights, ...domainWeights };
+
+    // 1. Run all engines simultaneously
+    const promises = domains.map(async (d) => {
+      // Simulate engine processing time
+      await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 200));
+      return this.query([query], d, 3);
+    });
+
+    const allResponses = await Promise.all(promises);
+    
+    // 2. Aggregate and compute fused scores
+    const fusedResults: QueryResult[] = [];
+    allResponses.forEach(resp => {
+      resp.results.forEach(res => {
+        const weight = weights[res.domain] || 1.0;
+        const fusedScore = res.confidence * weight;
+        fusedResults.push({
+          ...res,
+          confidence: Number(fusedScore.toFixed(3))
+        });
+      });
+    });
+
+    // Sort by fused confidence
+    fusedResults.sort((a, b) => b.confidence - a.confidence);
+
+    // 3. Generate Causal Links (Heuristic for demo)
+    const links: CausalLink[] = [];
+    for (let i = 0; i < Math.min(fusedResults.length - 1, 5); i++) {
+      if (fusedResults[i].domain !== fusedResults[i+1].domain) {
+        links.push({
+          source: fusedResults[i].display,
+          target: fusedResults[i+1].display,
+          sourceDomain: fusedResults[i].domain,
+          targetDomain: fusedResults[i+1].domain,
+          strength: (fusedResults[i].confidence + fusedResults[i+1].confidence) / 2
+        });
+      }
+    }
+
+    const baseResponse = this.query([query], "auto");
+
+    return {
+      ...baseResponse,
+      fusedResults: fusedResults.slice(0, 10),
+      links
     };
   }
 }

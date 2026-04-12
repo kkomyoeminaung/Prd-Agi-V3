@@ -10,8 +10,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { engine, MasterResponse, QueryResult } from './lib/master-engine';
+import { engine, MasterResponse, QueryResult, FusionResponse } from './lib/master-engine';
 import { CurvatureDashboard } from './components/CurvatureDashboard';
+import { CausalFlowDiagram } from './components/CausalFlowDiagram';
 import { explainResults, chatWithAI, searchWithAI } from './services/gemini';
 
 function cn(...inputs: ClassValue[]) {
@@ -42,6 +43,8 @@ export default function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [explanation, setExplanation] = useState('');
   const [isExplaining, setIsExplaining] = useState(false);
+  const [isFusionMode, setIsFusionMode] = useState(false);
+  const [fusionResult, setFusionResult] = useState<FusionResponse | null>(null);
   
   const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', content: string}[]>(() => {
     try {
@@ -139,20 +142,28 @@ export default function App() {
 
   const handleAnalyze = async () => {
     if (!query.trim()) return;
+    setIsAnalyzing(true);
+    setExplanation('');
+    setFusionResult(null);
+    
     try {
-      setIsAnalyzing(true);
-      setExplanation('');
-      
-      // Simulate some latency for "causal processing"
-      await new Promise(r => setTimeout(r, 800));
-      
       const inputs = query.split('\n').map(s => s.trim()).filter(Boolean);
-      const result = engine.query(inputs, selectedDomain);
-      setAnalysisResult(result);
-      setIsAnalyzing(false);
+      
+      if (isFusionMode) {
+        const result = await engine.fusionQuery(query);
+        setFusionResult(result);
+        setAnalysisResult(result);
+      } else {
+        // Simulate some latency for "causal processing"
+        await new Promise(r => setTimeout(r, 800));
+        const result = engine.query(inputs, selectedDomain);
+        setAnalysisResult(result);
+      }
+      
       setActiveTab('analysis');
     } catch (error) {
       console.error("Analysis Error:", error);
+    } finally {
       setIsAnalyzing(false);
     }
   };
@@ -297,19 +308,36 @@ export default function App() {
                           onChange={(e) => setQuery(e.target.value)}
                         />
                         <div className="flex items-center justify-between">
-                          <select 
-                            className="bg-[#111827] border border-[#192033] rounded-lg px-4 py-2 text-sm outline-none"
-                            value={selectedDomain}
-                            onChange={(e) => setSelectedDomain(e.target.value)}
-                          >
-                            <option value="auto">Auto-Route Domain</option>
-                            <option value="medical">Medical</option>
-                            <option value="legal">Legal</option>
-                            <option value="financial">Financial</option>
-                            <option value="education">Education</option>
-                            <option value="security">Security</option>
-                            <option value="mental">Mental Health</option>
-                          </select>
+                          <div className="flex items-center gap-4">
+                            <select 
+                              className="bg-[#111827] border border-[#192033] rounded-lg px-4 py-2 text-sm outline-none"
+                              value={selectedDomain}
+                              onChange={(e) => setSelectedDomain(e.target.value)}
+                              disabled={isFusionMode}
+                            >
+                              <option value="auto">Auto-Route Domain</option>
+                              <option value="medical">Medical</option>
+                              <option value="legal">Legal</option>
+                              <option value="financial">Financial</option>
+                              <option value="education">Education</option>
+                              <option value="security">Security</option>
+                              <option value="mental">Mental Health</option>
+                            </select>
+
+                            <button
+                              onClick={() => setIsFusionMode(!isFusionMode)}
+                              className={cn(
+                                "px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 border",
+                                isFusionMode 
+                                  ? "bg-primary/20 border-primary text-primary" 
+                                  : "bg-[#111827] border-[#192033] text-muted-foreground hover:border-primary/50"
+                              )}
+                            >
+                              <Zap className={cn("w-4 h-4", isFusionMode && "animate-pulse")} />
+                              Fusion Mode
+                            </button>
+                          </div>
+
                           <button 
                             onClick={handleAnalyze}
                             disabled={isAnalyzing || !query.trim()}
@@ -398,6 +426,12 @@ export default function App() {
                         Explain with AI
                       </button>
                     </div>
+
+                    {fusionResult && fusionResult.links.length > 0 && (
+                      <div className="mb-8">
+                        <CausalFlowDiagram links={fusionResult.links} />
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                       <div className="space-y-4">
