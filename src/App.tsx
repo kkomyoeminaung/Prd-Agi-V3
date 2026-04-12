@@ -17,12 +17,12 @@ import { JourneyPanel } from './components/JourneyPanel';
 import { PatthanaHeatmap } from './components/PatthanaHeatmap';
 import { QuantumInterference } from './components/QuantumInterference';
 import { DocumentAnalysis } from './components/DocumentAnalysis';
-import { MemoryBank, KnowledgeBase, DreamLogPanel, CausalPlasticity, SystemHealth } from './components/MemoryPanels';
+import { MemoryBank, KnowledgeBase, DreamLogPanel, CausalPlasticity, SystemHealth, SelfRefinementLog, ValidationDashboard, KnowledgeTransfer } from './components/MemoryPanels';
 import { persistence } from './lib/persistence';
 import { prdDB } from './lib/db';
 import { DreamAgent } from './services/dreamAgent';
 import { coreEngine } from './services/coreEngine';
-import { explainResults, chatWithAI, searchWithAI, analyzeDocument } from './services/gemini';
+import { explainResults, chatWithAI, searchWithAI, analyzeDocument, refineResponse } from './services/gemini';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -276,20 +276,39 @@ export default function App() {
         response = await chatWithAI(msg, chatHistory, currentAttachments, currentPersona, language);
       }
       
-      const aiMsg = { role: 'ai' as const, content: response, timestamp: Date.now() };
+      // Feature 6: Self-Refinement
+      const refinement = await refineResponse(msg, response, language);
+      let finalResponse = response;
+      if (refinement && refinement.improvementScore > 0.2) {
+        finalResponse = refinement.refinedResponse;
+        await prdDB.saveRefinement({
+          query: msg,
+          original: response,
+          critique: refinement.critique,
+          refined: refinement.refinedResponse,
+          improvementScore: refinement.improvementScore
+        });
+      }
+
+      const aiMsg = { role: 'ai' as const, content: finalResponse, timestamp: Date.now() };
       setChatHistory(prev => [...prev, { role: aiMsg.role, content: aiMsg.content }]);
       persistence.saveChat(aiMsg);
 
       // Save to IndexedDB for Feature 1 (Memory)
       await prdDB.saveConversation({
         query: msg,
-        response: response,
+        response: finalResponse,
         timestamp: Date.now(),
-        kappa: 0.1 // Placeholder
+        kappa: refinement?.curvature || 0.1
       });
 
       // Feature 4: Self-Learning (Update Weights)
-      await coreEngine.updateWeights('up', 0.15); // Simulated feedback/kappa
+      await coreEngine.updateWeights('up', refinement?.curvature || 0.15);
+
+      // Feature 7: Periodic Validation
+      if (chatHistory.length % 10 === 0) {
+        await coreEngine.runValidation();
+      }
 
       setIsChatting(false);
     } catch (error) {
@@ -927,12 +946,17 @@ export default function App() {
                   <div className="space-y-6">
                     <MemoryBank />
                     <CausalPlasticity />
+                    <SelfRefinementLog />
                   </div>
                   <div className="space-y-6">
                     <KnowledgeBase />
                     <SystemHealth />
+                    <ValidationDashboard />
                   </div>
-                  <DreamLogPanel />
+                  <div className="space-y-6">
+                    <DreamLogPanel />
+                    <KnowledgeTransfer />
+                  </div>
                 </div>
               </motion.div>
             )}

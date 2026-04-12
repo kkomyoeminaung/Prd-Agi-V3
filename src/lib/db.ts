@@ -48,6 +48,12 @@ class PRDDatabase {
         if (!db.objectStoreNames.contains('core_snapshots')) {
           db.createObjectStore('core_snapshots', { keyPath: 'id', autoIncrement: true });
         }
+        if (!db.objectStoreNames.contains('refinements')) {
+          db.createObjectStore('refinements', { keyPath: 'id', autoIncrement: true });
+        }
+        if (!db.objectStoreNames.contains('validation_logs')) {
+          db.createObjectStore('validation_logs', { keyPath: 'id', autoIncrement: true });
+        }
       },
     });
     return this.db;
@@ -127,6 +133,30 @@ class PRDDatabase {
     const db = await this.getDB();
     const all = await db.getAll('core_snapshots');
     return all.sort((a, b) => b.timestamp - a.timestamp)[0] || null;
+  }
+
+  // Feature 6: Self-Refinement
+  async saveRefinement(log: any) {
+    const db = await this.getDB();
+    return db.add('refinements', { ...log, timestamp: Date.now() });
+  }
+
+  async getRefinements(limit = 20) {
+    const db = await this.getDB();
+    const all = await db.getAll('refinements');
+    return all.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
+  }
+
+  // Feature 7: Validation
+  async saveValidationLog(log: any) {
+    const db = await this.getDB();
+    return db.add('validation_logs', { ...log, timestamp: Date.now() });
+  }
+
+  async getValidationLogs(limit = 20) {
+    const db = await this.getDB();
+    const all = await db.getAll('validation_logs');
+    return all.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
   }
 }
 

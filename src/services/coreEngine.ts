@@ -104,6 +104,99 @@ class CoreEngine {
     }
   }
 
+  // Feature 7: Model Validation & Holdout Testing
+  async runValidation() {
+    const history = await prdDB.getRecentConversations(50);
+    if (history.length < 5) return null;
+
+    // Pick 5 random samples
+    const samples = history.sort(() => 0.5 - Math.random()).slice(0, 5);
+    let totalSimilarity = 0;
+    let totalKappa = 0;
+
+    for (const sample of samples) {
+      // Simple keyword overlap similarity for demo
+      const qWords = new Set(sample.query.toLowerCase().split(/\s+/));
+      const rWords = new Set(sample.response.toLowerCase().split(/\s+/));
+      const intersection = new Set([...qWords].filter(x => rWords.has(x)));
+      const similarity = intersection.size / Math.max(qWords.size, 1);
+      
+      totalSimilarity += similarity;
+      totalKappa += sample.kappa || 0.1;
+    }
+
+    const avgScore = totalSimilarity / samples.length;
+    const avgKappa = totalKappa / samples.length;
+
+    const log = {
+      score: avgScore,
+      kappa: avgKappa,
+      status: (avgScore < 0.7 || avgKappa > 0.3) ? 'Alert' : 'Healthy'
+    };
+
+    await prdDB.saveValidationLog(log);
+
+    if (log.status === 'Alert') {
+      await this.rollback();
+    }
+
+    return log;
+  }
+
+  // Feature 8: Knowledge Distillation
+  exportKnowledge() {
+    const data = {
+      version: '3.0',
+      weights: this.weights,
+      timestamp: Date.now(),
+      metadata: {
+        interactionCount: this.interactionCount,
+        rollbackCount: this.rollbackCount
+      }
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `prd-agi-knowledge-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async importKnowledge(jsonStr: string, strategy: 'replace' | 'average' | 'weighted' = 'average') {
+    try {
+      const data = JSON.parse(jsonStr);
+      if (!data.weights || !Array.isArray(data.weights) || data.weights.length !== 24) {
+        throw new Error("Invalid knowledge file format.");
+      }
+
+      const importedWeights = data.weights;
+
+      if (strategy === 'replace') {
+        this.weights = importedWeights;
+      } else if (strategy === 'average') {
+        this.weights = this.weights.map((w, i) => (w + importedWeights[i]) / 2);
+      } else if (strategy === 'weighted') {
+        // Weighted by interaction count if available
+        const currentWeight = 0.7;
+        const importedWeight = 0.3;
+        this.weights = this.weights.map((w, i) => (w * currentWeight + importedWeights[i] * importedWeight));
+      }
+
+      // Re-normalize
+      const sum = this.weights.reduce((a, b) => a + b, 0);
+      this.weights = this.weights.map(w => w / sum);
+
+      await prdDB.saveWeights(this.weights);
+      await this.createSnapshot();
+      this.integrityStatus = 'Restored';
+      return true;
+    } catch (error) {
+      console.error("Import Error:", error);
+      return false;
+    }
+  }
+
   getStats() {
     const sorted = this.weights
       .map((w, i) => ({ name: PACC_NAMES[i], weight: w }))

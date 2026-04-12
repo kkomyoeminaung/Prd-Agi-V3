@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Brain, Database, Moon, Search, Clock, Trash2, ExternalLink, RefreshCw, Zap, Shield, Activity } from 'lucide-react';
+import { Brain, Database, Moon, Search, Clock, Trash2, ExternalLink, RefreshCw, Zap, Shield, Activity, MessageCircle, CheckCircle, Download, Upload } from 'lucide-react';
 import { prdDB, Conversation, KnowledgeChunk, DreamLog } from '../lib/db';
 import { DreamAgent } from '../services/dreamAgent';
 import { coreEngine } from '../services/coreEngine';
@@ -265,3 +265,175 @@ function HealthStat({ label, value, color = "text-muted-foreground" }: { label: 
 function cn(...inputs: any[]) {
   return inputs.filter(Boolean).join(' ');
 }
+
+export const SelfRefinementLog: React.FC = () => {
+  const [refinements, setRefinements] = useState<any[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      const data = await prdDB.getRefinements();
+      setRefinements(data);
+    };
+    load();
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="p-6 rounded-xl border border-[#192033] bg-[#0c0f1a] space-y-4">
+      <h3 className="text-lg font-semibold flex items-center gap-2">
+        <MessageCircle className="w-5 h-5 text-primary" />
+        Self-Refinement Log
+      </h3>
+      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+        {refinements.map((r, i) => (
+          <div key={i} className="p-3 rounded-lg bg-[#111827] border border-[#192033] space-y-2">
+            <div className="flex justify-between items-start">
+              <span className="text-[8px] font-mono text-primary uppercase tracking-widest">Refinement #{refinements.length - i}</span>
+              <span className="text-[8px] text-muted-foreground">{new Date(r.timestamp).toLocaleTimeString()}</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground italic">Critique: {r.critique}</p>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-1 bg-[#192033] rounded-full overflow-hidden">
+                <div className="h-full bg-green-400" style={{ width: `${r.improvementScore * 100}%` }} />
+              </div>
+              <span className="text-[8px] font-mono text-muted-foreground">Imp: {(r.improvementScore * 100).toFixed(0)}%</span>
+            </div>
+          </div>
+        ))}
+        {refinements.length === 0 && (
+          <p className="text-center text-xs text-muted-foreground py-4">No refinements logged yet.</p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export const ValidationDashboard: React.FC = () => {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [isValidating, setIsValidating] = useState(false);
+
+  const load = async () => {
+    const data = await prdDB.getValidationLogs();
+    setLogs(data);
+  };
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const runValidation = async () => {
+    setIsValidating(true);
+    await coreEngine.runValidation();
+    setIsValidating(false);
+    load();
+  };
+
+  const latest = logs[0];
+
+  return (
+    <div className="p-6 rounded-xl border border-[#192033] bg-[#0c0f1a] space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+          <CheckCircle className="w-5 h-5 text-primary" />
+          Validation Dashboard
+        </h3>
+        <button 
+          onClick={runValidation}
+          disabled={isValidating}
+          className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all"
+        >
+          <RefreshCw className={cn("w-3 h-3", isValidating && "animate-spin")} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <HealthStat label="Val Score" value={latest ? `${(latest.score * 100).toFixed(1)}%` : 'N/A'} color={latest?.score < 0.7 ? 'text-red-400' : 'text-green-400'} />
+        <HealthStat label="Avg κ" value={latest ? latest.kappa.toFixed(3) : 'N/A'} color={latest?.kappa > 0.3 ? 'text-yellow-400' : 'text-primary'} />
+      </div>
+
+      <div className="p-3 rounded-lg bg-[#111827] border border-[#192033]">
+        <div className="flex items-center gap-2 mb-2">
+          <div className={`w-2 h-2 rounded-full ${latest?.status === 'Healthy' ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
+          <span className="text-[10px] font-bold uppercase tracking-widest">Model Status: {latest?.status || 'Unknown'}</span>
+        </div>
+        <p className="text-[9px] text-muted-foreground leading-relaxed">
+          Validation runs against historical "good" responses. Threshold: Score {'>'} 0.7, κ {'<'} 0.3.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+export const KnowledgeTransfer: React.FC = () => {
+  const [strategy, setStrategy] = useState<'replace' | 'average' | 'weighted'>('average');
+  const [isImporting, setIsImporting] = useState(false);
+
+  const handleExport = () => coreEngine.exportKnowledge();
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    const text = await file.text();
+    const success = await coreEngine.importKnowledge(text, strategy);
+    setIsImporting(false);
+    
+    if (success) {
+      alert("Knowledge imported and merged successfully.");
+    } else {
+      alert("Failed to import knowledge. Check file format.");
+    }
+  };
+
+  return (
+    <div className="p-6 rounded-xl border border-[#192033] bg-[#0c0f1a] space-y-4">
+      <h3 className="text-lg font-semibold flex items-center gap-2">
+        <Download className="w-5 h-5 text-primary" />
+        Knowledge Transfer
+      </h3>
+      
+      <div className="space-y-4">
+        <div className="flex gap-2">
+          <button 
+            onClick={handleExport}
+            className="flex-1 py-2 rounded-lg bg-primary text-white text-xs font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-all"
+          >
+            <Download className="w-3 h-3" />
+            Export Core
+          </button>
+          <label className="flex-1 py-2 rounded-lg bg-[#192033] text-muted-foreground text-xs font-bold flex items-center justify-center gap-2 hover:bg-[#252d45] transition-all cursor-pointer">
+            <Upload className="w-3 h-3" />
+            Import Core
+            <input type="file" className="hidden" accept=".json" onChange={handleImport} />
+          </label>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Merge Strategy</p>
+          <div className="grid grid-cols-3 gap-2">
+            {(['replace', 'average', 'weighted'] as const).map(s => (
+              <button
+                key={s}
+                onClick={() => setStrategy(s)}
+                className={cn(
+                  "py-1 rounded border text-[8px] font-bold uppercase tracking-tighter transition-all",
+                  strategy === s ? "bg-primary/20 border-primary text-primary" : "bg-[#111827] border-[#192033] text-muted-foreground"
+                )}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <p className="text-[9px] text-muted-foreground leading-relaxed italic">
+        Transfer Paccaya weights and memory clusters across model versions. Merging preserves accumulated wisdom.
+      </p>
+    </div>
+  );
+};

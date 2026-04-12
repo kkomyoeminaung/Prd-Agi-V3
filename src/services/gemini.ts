@@ -272,6 +272,50 @@ export async function analyzeDocument(text: string, language: 'en' | 'my' = 'en'
   }
 }
 
+export async function refineResponse(originalQuery: string, originalResponse: string, language: 'en' | 'my' = 'en') {
+  try {
+    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေပါ။ သို့သော် technical terms (κ, tensor, PRD) များကို English ဖြင့် ထားပါ။" : "";
+    
+    const systemInstruction = `
+      ${PRD_IDENTITY}
+      You are the PRD-AGI Self-Reflection Core. 
+      Critique the provided response to the user's query. 
+      Identify logical flaws, inconsistencies, hallucinations, or weak causal links.
+      Suggest a refined, more accurate, and causally grounded answer.
+      
+      Format your output as a JSON object:
+      {
+        "critique": "string",
+        "refinedResponse": "string",
+        "curvature": number (0-1),
+        "improvementScore": number (0-1)
+      }
+      ${myanmarInstruction}
+    `;
+
+    const messages = [
+      { role: "system", content: systemInstruction },
+      { role: "user", content: `Query: ${originalQuery}\n\nOriginal Response: ${originalResponse}` }
+    ];
+
+    let responseText;
+    if (GROQ_KEYS.length > 0) {
+      responseText = await callGroq(messages);
+    } else {
+      responseText = await callCerebras(messages);
+    }
+
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    return null;
+  } catch (error) {
+    console.error("Refinement Error:", error);
+    return null;
+  }
+}
+
 export async function chatWithAI(message: string, history: any[] = [], attachments: any[] = [], persona: string = "general", language: 'en' | 'my' = 'en') {
   try {
     // Feature 1 & 2: Context Injection
