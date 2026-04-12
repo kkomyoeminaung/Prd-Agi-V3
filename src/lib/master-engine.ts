@@ -82,7 +82,10 @@ function scoreResults(candidates: Record<string, RelationalTensor[]>, topK: numb
       category: best.category,
       severity: best.severity,
       sources: tensors.map((t) => t.identity?.split("->")[0] || ""),
-      tensor: best.toDict(),
+      tensor: {
+        ...best.toDict(),
+        K: Number(best.curvature().toFixed(4))
+      },
       extra: best.extra,
       disclaimer: DISCLAIMERS[best.domain] || DISCLAIMERS.general,
     });
@@ -163,7 +166,7 @@ export class MasterEngine {
     }
 
     let results: QueryResult[] = [];
-    let label = "No domain matched";
+    let label = "Neural Mapping Results";
 
     const cmap: Record<string, RelationalTensor[]> = {};
     const kbMap: Record<string, BaseKB> = {
@@ -175,8 +178,10 @@ export class MasterEngine {
       mental: this.mentalKB,
     };
 
-    const kb = kbMap[domain];
-    if (kb) {
+    // If auto, search across ALL knowledge bases to find best curvature
+    const targetKBs = domain === "auto" ? Object.values(kbMap) : [kbMap[domain]].filter(Boolean);
+
+    targetKBs.forEach(kb => {
       inputs.forEach((input) => {
         kb.bySource(input).forEach((t) => {
           const target = t.identity?.split("->")[1] || "unknown";
@@ -184,8 +189,13 @@ export class MasterEngine {
           cmap[target].push(t);
         });
       });
-      results = scoreResults(cmap, topK);
+    });
+
+    results = scoreResults(cmap, topK);
+    if (domain !== "auto") {
       label = this.getLabel(domain);
+    } else if (results.length > 0) {
+      label = `Unified Analysis: ${this.getLabel(results[0].domain)}`;
     }
 
     return {

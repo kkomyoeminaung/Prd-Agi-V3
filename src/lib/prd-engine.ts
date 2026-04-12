@@ -46,8 +46,15 @@ export class RelationalTensor {
     this.extra = data.extra || {};
   }
 
+  curvature(): number {
+    // K = (C * |D|) / (1 + U)
+    // In Relational Physics, higher curvature indicates a stronger causal "gravity"
+    return (this.C * Math.abs(this.D)) / (1 + this.U);
+  }
+
   score(): number {
-    const base = 0.4 * this.C + 0.3 * Math.min(this.W, 1.0) + 0.2 * (1 - this.U) + 0.1 * this.T;
+    const k = this.curvature();
+    const base = 0.4 * k + 0.3 * Math.min(this.W, 1.0) + 0.2 * (1 - this.U) + 0.1 * this.T;
     return Math.min(1.0, base);
   }
 

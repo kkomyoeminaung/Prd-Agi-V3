@@ -10,7 +10,7 @@ import ReactMarkdown from 'react-markdown';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { engine, MasterResponse, QueryResult } from './lib/master-engine';
-import { explainResults, chatWithAI } from './services/gemini';
+import { explainResults, chatWithAI, searchWithAI } from './services/gemini';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -42,11 +42,17 @@ export default function App() {
   const [isExplaining, setIsExplaining] = useState(false);
   
   const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', content: string}[]>(() => {
-    const saved = localStorage.getItem('prd_agi_chat_history');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('prd_agi_chat_history');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error("Failed to load chat history", e);
+      return [];
+    }
   });
   const [chatInput, setChatInput] = useState('');
   const [isChatting, setIsChatting] = useState(false);
+  const [isSearchMode, setIsSearchMode] = useState(false);
   const [attachments, setAttachments] = useState<{ name: string, mimeType: string, data: string }[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -79,25 +85,36 @@ export default function App() {
 
   const handleAnalyze = async () => {
     if (!query.trim()) return;
-    setIsAnalyzing(true);
-    setExplanation('');
-    
-    // Simulate some latency for "causal processing"
-    await new Promise(r => setTimeout(r, 800));
-    
-    const inputs = query.split('\n').map(s => s.trim()).filter(Boolean);
-    const result = engine.query(inputs, selectedDomain);
-    setAnalysisResult(result);
-    setIsAnalyzing(false);
-    setActiveTab('analysis');
+    try {
+      setIsAnalyzing(true);
+      setExplanation('');
+      
+      // Simulate some latency for "causal processing"
+      await new Promise(r => setTimeout(r, 800));
+      
+      const inputs = query.split('\n').map(s => s.trim()).filter(Boolean);
+      const result = engine.query(inputs, selectedDomain);
+      setAnalysisResult(result);
+      setIsAnalyzing(false);
+      setActiveTab('analysis');
+    } catch (error) {
+      console.error("Analysis Error:", error);
+      setIsAnalyzing(false);
+    }
   };
 
   const handleExplain = async () => {
     if (!analysisResult) return;
-    setIsExplaining(true);
-    const text = await explainResults(analysisResult);
-    setExplanation(text);
-    setIsExplaining(false);
+    try {
+      setIsExplaining(true);
+      const text = await explainResults(analysisResult);
+      setExplanation(text);
+      setIsExplaining(false);
+    } catch (error) {
+      console.error("Explain Error:", error);
+      setIsExplaining(false);
+      setExplanation("⚠️ Analysis explanation failed. Please try again.");
+    }
   };
 
   const [isListening, setIsListening] = useState(false);
@@ -137,20 +154,32 @@ export default function App() {
 
   const handleChat = async () => {
     if (!chatInput.trim() && attachments.length === 0) return;
-    const msg = chatInput;
-    const currentAttachments = [...attachments];
-    setChatInput('');
-    setAttachments([]);
-    
-    setChatHistory(prev => [...prev, { 
-      role: 'user', 
-      content: msg + (currentAttachments.length > 0 ? `\n\n[Attached: ${currentAttachments.map(a => a.name).join(', ')}]` : '') 
-    }]);
-    setIsChatting(true);
-    
-    const response = await chatWithAI(msg, chatHistory, currentAttachments);
-    setChatHistory(prev => [...prev, { role: 'ai', content: response }]);
-    setIsChatting(false);
+    try {
+      const msg = chatInput;
+      const currentAttachments = [...attachments];
+      setChatInput('');
+      setAttachments([]);
+      
+      setChatHistory(prev => [...prev, { 
+        role: 'user', 
+        content: msg + (currentAttachments.length > 0 ? `\n\n[Attached: ${currentAttachments.map(a => a.name).join(', ')}]` : '') 
+      }]);
+      setIsChatting(true);
+      
+      let response;
+      if (isSearchMode) {
+        response = await searchWithAI(msg, chatHistory);
+      } else {
+        response = await chatWithAI(msg, chatHistory, currentAttachments);
+      }
+      
+      setChatHistory(prev => [...prev, { role: 'ai', content: response }]);
+      setIsChatting(false);
+    } catch (error) {
+      console.error("Chat Error:", error);
+      setIsChatting(false);
+      setChatHistory(prev => [...prev, { role: 'ai', content: "⚠️ Neural connection interrupted. Please try again." }]);
+    }
   };
 
   return (
@@ -482,6 +511,17 @@ export default function App() {
                       accept="image/*,text/plain,application/pdf"
                     />
                     <button 
+                      onClick={() => setIsSearchMode(!isSearchMode)}
+                      className={cn(
+                        "p-3 rounded-xl transition-all duration-200 flex items-center gap-2",
+                        isSearchMode ? "bg-blue-500/20 text-blue-400 border border-blue-500/50" : "bg-[#192033] hover:bg-[#252d45] text-muted-foreground"
+                      )}
+                      title="Toggle Web Search"
+                    >
+                      <Search className="w-5 h-5" />
+                      {isSearchMode && <span className="text-[10px] font-bold uppercase tracking-widest">Search On</span>}
+                    </button>
+                    <button 
                       onClick={() => fileInputRef.current?.click()}
                       className="p-3 rounded-xl bg-[#192033] hover:bg-[#252d45] text-muted-foreground transition-all"
                       title="Upload Files (Images, Text, PDF)"
@@ -683,10 +723,11 @@ function ResultCard({ result }: { result: QueryResult }) {
         </div>
       </div>
       
-      <div className="grid grid-cols-3 gap-2 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
         <MetricBox label="Causality C" value={result.tensor.C} />
         <MetricBox label="Uncertainty U" value={result.tensor.U} />
         <MetricBox label="Weight W" value={result.tensor.W} />
+        <MetricBox label="Curvature K" value={result.tensor.K} />
       </div>
 
       <div className="flex flex-wrap gap-2">

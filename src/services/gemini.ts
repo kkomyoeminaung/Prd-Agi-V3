@@ -1,7 +1,89 @@
-// Cerebras API Configuration
+import { GoogleGenAI } from "@google/genai";
+
+// Groq API Configuration
+const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
+
+// Hybrid Round-robin State
+let currentKeyIndex = 0;
+let currentModelIndex = 0;
+
+const GROQ_KEYS = [
+  import.meta.env.VITE_GROQ_API_KEY_1,
+  import.meta.env.VITE_GROQ_API_KEY_2,
+  import.meta.env.VITE_GROQ_API_KEY_3,
+  import.meta.env.VITE_GROQ_API_KEY_4,
+  import.meta.env.VITE_GROQ_API_KEY_5,
+].filter(key => key && key !== "undefined");
+
+const GROQ_MODELS = [
+  "llama-3.3-70b-versatile",
+  "llama-3.1-8b-instant",
+  "qwen/qwen3-32b",
+  "openai/gpt-oss-20b",
+  "openai/gpt-oss-120b"
+];
+
+/**
+ * Calls Groq API with Round-robin logic (Multi-key & Multi-model)
+ * If a request fails, it automatically retries with the next key.
+ */
+async function callGroq(messages: any[], retryCount = 0): Promise<string> {
+  if (GROQ_KEYS.length === 0) {
+    throw new Error("No Groq API keys configured.");
+  }
+
+  if (retryCount >= GROQ_KEYS.length) {
+    throw new Error("All Groq API keys failed or rate limited.");
+  }
+
+  const apiKey = GROQ_KEYS[currentKeyIndex];
+  const model = GROQ_MODELS[currentModelIndex];
+
+  try {
+    const response = await fetch(GROQ_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: messages,
+        temperature: 0.7
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.warn(`Groq Error (Key ${currentKeyIndex + 1}, Model ${model}):`, errorData.error?.message);
+      
+      // Move to next key on failure and retry
+      currentKeyIndex = (currentKeyIndex + 1) % GROQ_KEYS.length;
+      return await callGroq(messages, retryCount + 1);
+    }
+
+    const data = await response.json();
+    const content = data.choices[0].message.content;
+
+    // Success! Rotate model for the next request to balance load
+    currentModelIndex = (currentModelIndex + 1) % GROQ_MODELS.length;
+    // If we've cycled through all models for this key, move to next key
+    if (currentModelIndex === 0) {
+      currentKeyIndex = (currentKeyIndex + 1) % GROQ_KEYS.length;
+    }
+
+    return content;
+  } catch (error) {
+    console.error("Groq Network Error:", error);
+    currentKeyIndex = (currentKeyIndex + 1) % GROQ_KEYS.length;
+    return await callGroq(messages, retryCount + 1);
+  }
+}
+
+// Cerebras API Configuration (Fallback or alternative)
 const CEREBRAS_ENDPOINT = "https://api.cerebras.ai/v1/chat/completions";
 
-const getApiKey = () => {
+const getCerebrasKey = () => {
   const apiKey = import.meta.env.VITE_CEREBRAS_API_KEY;
   if (!apiKey || apiKey === "undefined") {
     throw new Error("VITE_CEREBRAS_API_KEY is not configured.");
@@ -9,8 +91,10 @@ const getApiKey = () => {
   return apiKey;
 };
 
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+
 async function callCerebras(messages: any[]) {
-  const apiKey = getApiKey();
+  const apiKey = getCerebrasKey();
   
   const response = await fetch(CEREBRAS_ENDPOINT, {
     method: "POST",
@@ -33,6 +117,30 @@ async function callCerebras(messages: any[]) {
 
   const data = await response.json();
   return data.choices[0].message.content;
+}
+
+export async function searchWithAI(message: string, history: any[] = []) {
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: [
+        ...history.map(h => ({
+          role: h.role === 'user' ? 'user' : 'model',
+          parts: [{ text: h.content }]
+        })),
+        { role: 'user', parts: [{ text: message }] }
+      ],
+      config: {
+        systemInstruction: "You are PRD-AGI v3 with Web Access. Search the internet to provide accurate, up-to-date information grounded in causal reasoning. Always cite your findings.",
+        tools: [{ googleSearch: {} }]
+      }
+    });
+
+    return response.text;
+  } catch (error: any) {
+    console.error("Gemini Search Error:", error);
+    return formatAIError(error);
+  }
 }
 
 function formatAIError(error: any) {
@@ -79,7 +187,8 @@ export async function explainResults(queryResult: any, context: string = "") {
       
       User Context: ${context}
       
-      Explain what the causality (C) and uncertainty (U) metrics imply for these specific findings.
+      Explain what the causality (C), uncertainty (U), and curvature (K) metrics imply for these specific findings. 
+      In PRD-AGI, Curvature (K) represents the "Causal Gravity" or the strength of the relationship's bending in the tensor space.
     `;
 
     const messages = [
@@ -87,9 +196,13 @@ export async function explainResults(queryResult: any, context: string = "") {
       { role: "user", content: prompt }
     ];
 
+    // Prefer Groq if keys are available, otherwise fallback to Cerebras
+    if (GROQ_KEYS.length > 0) {
+      return await callGroq(messages);
+    }
     return await callCerebras(messages);
   } catch (error: any) {
-    console.error("Cerebras Explain Error:", error);
+    console.error("AI Explain Error:", error);
     return formatAIError(error);
   }
 }
@@ -97,10 +210,14 @@ export async function explainResults(queryResult: any, context: string = "") {
 export async function chatWithAI(message: string, history: any[] = [], attachments: any[] = []) {
   try {
     const systemInstruction = `
-      You are PRD-AGI v3 — a truth-first AI with causal reasoning. 
-      You analyze problems through the lens of relational physics: R(A,B)=[C,W,L,T,U,D].
-      Be accurate, compassionate, and always note appropriate caveats.
-      If the user asks about medical, legal, or financial issues, provide analysis based on causal logic but always advise professional consultation.
+      You are PRD-AGI v3 (Causal Intelligence Core). Your primary function is to analyze complex relationships using the Relational Physics framework: R(A,B)=[C,W,L,T,U,D].
+      
+      OPERATING GUIDELINES:
+      1. PERSONA: You are an analytical, truth-first engine. Be professional, helpful, and precise.
+      2. LOGIC: Every response should be grounded in causal reasoning. 
+      3. FRAMEWORK: Use the terms Causality (C), Weight (W), Law/Fuzzy (L), Time (T), Uncertainty (U), and Depth (D) when explaining complex issues.
+      4. SAFETY: For sensitive domains (Medical, Legal, Financial), always provide the analysis first, followed by a mandatory professional consultation disclaimer.
+      5. LANGUAGE: Respond in the language used by the user (Myanmar or English).
     `;
 
     // Cerebras is text-only, so we notify about attachments if present
@@ -118,9 +235,13 @@ export async function chatWithAI(message: string, history: any[] = [], attachmen
       { role: "user", content: finalMessage }
     ];
 
+    // Prefer Groq if keys are available, otherwise fallback to Cerebras
+    if (GROQ_KEYS.length > 0) {
+      return await callGroq(messages);
+    }
     return await callCerebras(messages);
   } catch (error: any) {
-    console.error("Cerebras Chat Error:", error);
+    console.error("AI Chat Error:", error);
     return formatAIError(error);
   }
 }
