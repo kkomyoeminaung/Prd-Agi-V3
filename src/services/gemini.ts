@@ -62,6 +62,28 @@ IDENTITY & ORIGIN:
 `;
 
 /**
+ * Helper to fetch with timeout
+ */
+async function fetchWithTimeout(url: string, options: any, timeout = 15000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error: any) {
+    clearTimeout(id);
+    if (error.name === 'AbortError') {
+      throw new Error("Request timed out after " + (timeout/1000) + "s");
+    }
+    throw error;
+  }
+}
+
+/**
  * Calls Groq API with Round-robin logic
  */
 async function callGroq(messages: any[], retryCount = 0): Promise<string> {
@@ -69,7 +91,7 @@ async function callGroq(messages: any[], retryCount = 0): Promise<string> {
 
   if (BACKEND_URL) {
     try {
-      const response = await fetch(BACKEND_URL, {
+      const response = await fetchWithTimeout(BACKEND_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -78,7 +100,8 @@ async function callGroq(messages: any[], retryCount = 0): Promise<string> {
           messages: messages,
           temperature: 0.7
         })
-      });
+      }, 12000);
+      
       if (!response.ok) {
         const errText = await response.text();
         throw new Error(`Proxy failed: ${errText}`);
@@ -97,11 +120,12 @@ async function callGroq(messages: any[], retryCount = 0): Promise<string> {
 
   const apiKey = GROQ_KEYS[groqKeyIdx];
   try {
-    const response = await fetch(GROQ_ENDPOINT, {
+    const response = await fetchWithTimeout(GROQ_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
       body: JSON.stringify({ model, messages, temperature: 0.7 })
-    });
+    }, 10000);
+    
     if (!response.ok) {
       groqKeyIdx = (groqKeyIdx + 1) % GROQ_KEYS.length;
       return await callGroq(messages, retryCount + 1);
@@ -122,11 +146,12 @@ async function callOpenAI(messages: any[], retryCount = 0): Promise<string> {
 
   if (BACKEND_URL) {
     try {
-      const response = await fetch(BACKEND_URL, {
+      const response = await fetchWithTimeout(BACKEND_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider: "openai", model, messages, temperature: 0.7 })
-      });
+      }, 12000);
+      
       if (!response.ok) {
         const errText = await response.text();
         throw new Error(`Proxy failed: ${errText}`);
@@ -145,11 +170,12 @@ async function callOpenAI(messages: any[], retryCount = 0): Promise<string> {
 
   const apiKey = OPENAI_KEYS[openaiKeyIdx];
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
       body: JSON.stringify({ model, messages, temperature: 0.7 })
-    });
+    }, 10000);
+    
     if (!response.ok) {
       openaiKeyIdx = (openaiKeyIdx + 1) % OPENAI_KEYS.length;
       return await callOpenAI(messages, retryCount + 1);
@@ -170,11 +196,12 @@ async function callAnthropic(messages: any[], retryCount = 0): Promise<string> {
 
   if (BACKEND_URL) {
     try {
-      const response = await fetch(BACKEND_URL, {
+      const response = await fetchWithTimeout(BACKEND_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider: "anthropic", model, messages, temperature: 0.7 })
-      });
+      }, 12000);
+      
       if (!response.ok) {
         const errText = await response.text();
         throw new Error(`Proxy failed: ${errText}`);
@@ -193,7 +220,7 @@ async function callAnthropic(messages: any[], retryCount = 0): Promise<string> {
 
   const apiKey = ANTHROPIC_KEYS[anthropicKeyIdx];
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { 
         "Content-Type": "application/json", 
@@ -206,7 +233,8 @@ async function callAnthropic(messages: any[], retryCount = 0): Promise<string> {
         system: messages.find(m => m.role === 'system')?.content,
         max_tokens: 4096 
       })
-    });
+    }, 10000);
+    
     if (!response.ok) {
       anthropicKeyIdx = (anthropicKeyIdx + 1) % ANTHROPIC_KEYS.length;
       return await callAnthropic(messages, retryCount + 1);
