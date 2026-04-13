@@ -616,7 +616,7 @@ export async function chatWithAI(message: string, history: any[] = [], attachmen
       systemInstruction += "\nSPECIALIZATION: You are now in CYBER-SECURITY mode. Focus on threat vectors, vulnerabilities, and mitigation causalities.";
     }
 
-    // Cerebras is text-only, so we notify about attachments if present
+    // Attachments handling
     let finalMessage = message;
     if (attachments.length > 0) {
       finalMessage += "\n\n(Note: User provided attachments which are currently not supported in text-only mode)";
