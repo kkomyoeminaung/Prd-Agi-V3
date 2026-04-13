@@ -3,56 +3,15 @@ import { prdDB } from "../lib/db";
 import { SearchService } from "./search";
 import { coreEngine } from "./coreEngine";
 
-// PRD-AGI v3.1 - Clean Build (Cerebras Removed)
-// Groq API Configuration
-const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
+// PRD-AGI v3.1 - Clean Build
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-
-// API Keys Configuration (Multi-key Round-robin)
-const GROQ_KEYS = [
-  import.meta.env.VITE_GROQ_API_KEY_1,
-  import.meta.env.VITE_GROQ_API_KEY_2,
-  import.meta.env.VITE_GROQ_API_KEY_3,
-  import.meta.env.VITE_GROQ_API_KEY_4,
-  import.meta.env.VITE_GROQ_API_KEY_5,
-].filter(key => key && key !== "undefined");
-
-const OPENAI_KEYS = [
-  import.meta.env.VITE_OPENAI_API_KEY_1,
-  import.meta.env.VITE_OPENAI_API_KEY_2,
-  import.meta.env.VITE_OPENAI_API_KEY_3,
-  import.meta.env.VITE_OPENAI_API_KEY_4,
-  import.meta.env.VITE_OPENAI_API_KEY_5,
-].filter(key => key && key !== "undefined");
-
-const ANTHROPIC_KEYS = [
-  import.meta.env.VITE_ANTHROPIC_API_KEY_1,
-  import.meta.env.VITE_ANTHROPIC_API_KEY_2,
-  import.meta.env.VITE_ANTHROPIC_API_KEY_3,
-  import.meta.env.VITE_ANTHROPIC_API_KEY_4,
-  import.meta.env.VITE_ANTHROPIC_API_KEY_5,
-].filter(key => key && key !== "undefined");
-
-const GEMINI_KEYS = [
-  process.env.GEMINI_API_KEY,
-  import.meta.env.VITE_GEMINI_API_KEY,
-  import.meta.env.VITE_GEMINI_API_KEY_2,
-  import.meta.env.VITE_GEMINI_API_KEY_3,
-  import.meta.env.VITE_GEMINI_API_KEY_4,
-  import.meta.env.VITE_GEMINI_API_KEY_5,
-].filter(key => key && key !== "undefined");
+const LOCAL_GEMINI_KEY = process.env.GEMINI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY;
 
 const GROQ_MODELS = [
-  "deepseek-r1-distill-llama-70b",
   "llama-3.3-70b-versatile",
+  "deepseek-r1-distill-llama-70b",
   "llama-3.1-70b-versatile"
 ];
-
-// Rotation States
-let groqKeyIdx = 0;
-let openaiKeyIdx = 0;
-let anthropicKeyIdx = 0;
-let geminiKeyIdx = 0;
 
 const PRD_IDENTITY = `
 IDENTITY & ORIGIN:
@@ -86,177 +45,111 @@ async function fetchWithTimeout(url: string, options: any, timeout = 15000) {
 }
 
 /**
- * Calls Groq API with Round-robin logic
+ * Calls Backend Proxy for Groq
  */
-async function callGroq(messages: any[], retryCount = 0): Promise<string> {
-  const model = GROQ_MODELS[0]; // Use best model
+async function callGroq(messages: any[]): Promise<string> {
+  const model = GROQ_MODELS[0];
+  if (!BACKEND_URL) throw new Error("BACKEND_URL not set");
 
-  if (BACKEND_URL) {
-    try {
-      const response = await fetchWithTimeout(BACKEND_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "groq",
-          model: model,
-          messages: messages,
-          temperature: 0.7
-        })
-      }, 12000);
-      
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Proxy failed: ${errText}`);
-      }
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
-      return data.choices[0].message.content;
-    } catch (error: any) {
-      console.error("Groq Proxy Error:", error);
-      if (GROQ_KEYS.length === 0) throw error;
-    }
+  const response = await fetchWithTimeout(BACKEND_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ provider: "groq", model, messages, temperature: 0.7 })
+  }, 15000);
+  
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Groq Proxy failed: ${errText}`);
   }
-
-  if (GROQ_KEYS.length === 0) throw new Error("No Groq Keys configured in App or Proxy.");
-  if (retryCount >= GROQ_KEYS.length) throw new Error("All Groq Keys failed or rate limited.");
-
-  const apiKey = GROQ_KEYS[groqKeyIdx];
-  try {
-    const response = await fetchWithTimeout(GROQ_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, messages, temperature: 0.7 })
-    }, 10000);
-    
-    if (!response.ok) {
-      groqKeyIdx = (groqKeyIdx + 1) % GROQ_KEYS.length;
-      return await callGroq(messages, retryCount + 1);
-    }
-    const data = await response.json();
-    return data.choices[0].message.content;
-  } catch (error) {
-    groqKeyIdx = (groqKeyIdx + 1) % GROQ_KEYS.length;
-    return await callGroq(messages, retryCount + 1);
-  }
+  const data = await response.json();
+  if (data.error) throw new Error(data.error);
+  return data.choices[0].message.content;
 }
 
 /**
- * Calls OpenAI API with Round-robin logic
+ * Calls Backend Proxy for OpenAI
  */
-async function callOpenAI(messages: any[], retryCount = 0): Promise<string> {
-  const model = "gpt-4o";
+async function callOpenAI(messages: any[]): Promise<string> {
+  if (!BACKEND_URL) throw new Error("BACKEND_URL not set");
 
-  if (BACKEND_URL) {
-    try {
-      const response = await fetchWithTimeout(BACKEND_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: "openai", model, messages, temperature: 0.7 })
-      }, 12000);
-      
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Proxy failed: ${errText}`);
-      }
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
-      return data.choices[0].message.content;
-    } catch (error: any) {
-      console.error("OpenAI Proxy Error:", error);
-      if (OPENAI_KEYS.length === 0) throw error;
-    }
+  const response = await fetchWithTimeout(BACKEND_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ provider: "openai", model: "gpt-4o", messages, temperature: 0.7 })
+  }, 15000);
+  
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`OpenAI Proxy failed: ${errText}`);
   }
-
-  if (OPENAI_KEYS.length === 0) throw new Error("No OpenAI Keys configured in App or Proxy.");
-  if (retryCount >= OPENAI_KEYS.length) throw new Error("All OpenAI Keys failed or rate limited.");
-
-  const apiKey = OPENAI_KEYS[openaiKeyIdx];
-  try {
-    const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, messages, temperature: 0.7 })
-    }, 10000);
-    
-    if (!response.ok) {
-      openaiKeyIdx = (openaiKeyIdx + 1) % OPENAI_KEYS.length;
-      return await callOpenAI(messages, retryCount + 1);
-    }
-    const data = await response.json();
-    return data.choices[0].message.content;
-  } catch (error) {
-    openaiKeyIdx = (openaiKeyIdx + 1) % OPENAI_KEYS.length;
-    return await callOpenAI(messages, retryCount + 1);
-  }
+  const data = await response.json();
+  if (data.error) throw new Error(data.error);
+  return data.choices[0].message.content;
 }
 
 /**
- * Calls Anthropic API with Round-robin logic
+ * Calls Backend Proxy for Anthropic
  */
-async function callAnthropic(messages: any[], retryCount = 0): Promise<string> {
-  const model = "claude-3-5-sonnet-20241022";
+async function callAnthropic(messages: any[]): Promise<string> {
+  if (!BACKEND_URL) throw new Error("BACKEND_URL not set");
 
-  if (BACKEND_URL) {
-    try {
-      const response = await fetchWithTimeout(BACKEND_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: "anthropic", model, messages, temperature: 0.7 })
-      }, 12000);
-      
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Proxy failed: ${errText}`);
-      }
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
-      return data.content[0].text;
-    } catch (error: any) {
-      console.error("Anthropic Proxy Error:", error);
-      if (ANTHROPIC_KEYS.length === 0) throw error;
-    }
+  const response = await fetchWithTimeout(BACKEND_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ provider: "anthropic", model: "claude-3-5-sonnet-20241022", messages, temperature: 0.7 })
+  }, 15000);
+  
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Anthropic Proxy failed: ${errText}`);
   }
+  const data = await response.json();
+  if (data.error) throw new Error(data.error);
+  return data.content[0].text;
+}
 
-  if (ANTHROPIC_KEYS.length === 0) throw new Error("No Anthropic Keys configured in App or Proxy.");
-  if (retryCount >= ANTHROPIC_KEYS.length) throw new Error("All Anthropic Keys failed or rate limited.");
-
-  const apiKey = ANTHROPIC_KEYS[anthropicKeyIdx];
-  try {
-    const response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
+/**
+ * Calls Backend Proxy for Gemini (or local fallback)
+ */
+async function callGemini(messages: any[]): Promise<string> {
+  if (BACKEND_URL) {
+    const response = await fetchWithTimeout(BACKEND_URL, {
       method: "POST",
-      headers: { 
-        "Content-Type": "application/json", 
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify({ 
-        model, 
-        messages: messages.filter(m => m.role !== 'system'),
-        system: messages.find(m => m.role === 'system')?.content,
-        max_tokens: 4096 
-      })
-    }, 10000);
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "gemini", model: "gemini-2.0-flash", messages, temperature: 0.7 })
+    }, 15000);
     
     if (!response.ok) {
-      anthropicKeyIdx = (anthropicKeyIdx + 1) % ANTHROPIC_KEYS.length;
-      return await callAnthropic(messages, retryCount + 1);
+      const errText = await response.text();
+      throw new Error(`Gemini Proxy failed: ${errText}`);
     }
     const data = await response.json();
-    return data.content[0].text;
-  } catch (error) {
-    anthropicKeyIdx = (anthropicKeyIdx + 1) % ANTHROPIC_KEYS.length;
-    return await callAnthropic(messages, retryCount + 1);
+    if (data.error) throw new Error(data.error);
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || data.text || "No response from Gemini";
   }
+
+  // Local fallback if no backend URL but local key exists
+  if (LOCAL_GEMINI_KEY) {
+    const ai = new GoogleGenAI({ apiKey: LOCAL_GEMINI_KEY });
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: messages.map(m => ({
+        role: m.role === 'system' ? 'user' : (m.role === 'assistant' ? 'model' : 'user'),
+        parts: [{ text: m.content }]
+      }))
+    });
+    return response.text || "";
+  }
+
+  throw new Error("No Backend URL and no local Gemini Key configured.");
 }
 
 /**
  * Master AI Caller (Rotates through providers if one fails)
  */
 async function callAI(messages: any[]): Promise<string> {
-  // Priority: Groq -> OpenAI -> Anthropic -> Gemini
-  
-  if (!BACKEND_URL && GROQ_KEYS.length === 0 && OPENAI_KEYS.length === 0 && ANTHROPIC_KEYS.length === 0 && GEMINI_KEYS.length === 0) {
-    throw new Error("Neural Core not configured. Please set VITE_BACKEND_URL in your environment variables (Cloudflare Pages Settings) to connect to your backend worker.");
+  if (!BACKEND_URL && !LOCAL_GEMINI_KEY) {
+    throw new Error("Neural Core not configured. Please set VITE_BACKEND_URL to connect to your backend worker.");
   }
 
   try {
@@ -279,68 +172,14 @@ async function callAI(messages: any[]): Promise<string> {
           return await callGemini(messages);
         } catch (e4: any) {
           console.error("All AI providers failed.", e4);
-          throw new Error(`Neural Core connection failed. Last error: ${e4.message}`);
+          throw new Error(`Neural Core connection failed. All providers exhausted. Last error: ${e4.message}`);
         }
       }
     }
   }
 }
 
-/**
- * Calls Gemini API with Round-robin logic
- */
-async function callGemini(messages: any[], retryCount = 0): Promise<string> {
-  if (BACKEND_URL) {
-    try {
-      const response = await fetchWithTimeout(BACKEND_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "gemini",
-          model: "gemini-2.0-flash",
-          messages: messages,
-          temperature: 0.7
-        })
-      }, 15000);
-      
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Proxy failed: ${errText}`);
-      }
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
-      // Gemini response structure might differ depending on your worker implementation
-      return data.candidates?.[0]?.content?.parts?.[0]?.text || data.text || "No response from Gemini";
-    } catch (error: any) {
-      console.error("Gemini Proxy Error:", error);
-      if (GEMINI_KEYS.length === 0) throw error;
-    }
-  }
-
-  if (GEMINI_KEYS.length === 0) throw new Error("No Gemini Keys configured.");
-  if (retryCount >= GEMINI_KEYS.length) throw new Error("All Gemini Keys failed.");
-
-  const apiKey = GEMINI_KEYS[geminiKeyIdx];
-  try {
-    const ai = new GoogleGenAI({ apiKey: apiKey });
-    
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: messages.map(m => ({
-        role: m.role === 'system' ? 'user' : (m.role === 'assistant' ? 'model' : 'user'),
-        parts: [{ text: m.content }]
-      }))
-    });
-    
-    return response.text || "";
-  } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    geminiKeyIdx = (geminiKeyIdx + 1) % GEMINI_KEYS.length;
-    return await callGemini(messages, retryCount + 1);
-  }
-}
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+const ai = new GoogleGenAI({ apiKey: LOCAL_GEMINI_KEY || "dummy" });
 
 export async function searchWithAI(message: string, history: any[] = [], language: 'en' | 'my' = 'en') {
   try {
