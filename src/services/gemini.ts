@@ -5,6 +5,7 @@ import { coreEngine } from "./coreEngine";
 
 // Groq API Configuration
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 // Hybrid Round-robin State
 let currentKeyIndex = 0;
@@ -43,6 +44,34 @@ IDENTITY & ORIGIN (ABSOLUTE PRIORITY):
  * If a request fails, it automatically retries with the next key.
  */
 async function callGroq(messages: any[], retryCount = 0): Promise<string> {
+  const model = GROQ_MODELS[currentModelIndex];
+
+  // If backend URL is provided, use it to proxy the request (hides keys)
+  if (BACKEND_URL) {
+    try {
+      const response = await fetch(BACKEND_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: "groq",
+          model: model,
+          messages: messages,
+          temperature: 0.7
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Backend proxy failed");
+      }
+
+      const data = await response.json();
+      return data.choices[0].message.content;
+    } catch (error) {
+      console.error("Backend Proxy Error:", error);
+      // Fallback to direct call if backend fails and keys are available
+    }
+  }
+
   if (GROQ_KEYS.length === 0) {
     throw new Error("No Groq API keys configured.");
   }
@@ -109,6 +138,31 @@ const getCerebrasKey = () => {
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 async function callCerebras(messages: any[]) {
+  // If backend URL is provided, use it to proxy the request
+  if (BACKEND_URL) {
+    try {
+      const response = await fetch(BACKEND_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: "cerebras",
+          model: "llama3.1-8b",
+          messages: messages,
+          temperature: 0.7
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Backend proxy failed");
+      }
+
+      const data = await response.json();
+      return data.choices[0].message.content;
+    } catch (error) {
+      console.error("Backend Proxy Error:", error);
+    }
+  }
+
   const apiKey = getCerebrasKey();
   
   const response = await fetch(CEREBRAS_ENDPOINT, {
