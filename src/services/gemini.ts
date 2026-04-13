@@ -81,7 +81,6 @@ async function callGroq(messages: any[], retryCount = 0): Promise<string> {
   }
 
   const apiKey = GROQ_KEYS[currentKeyIndex];
-  const model = GROQ_MODELS[currentModelIndex];
 
   try {
     const response = await fetch(GROQ_ENDPOINT, {
