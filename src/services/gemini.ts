@@ -21,17 +21,13 @@ const GROQ_KEYS = [
 
 const GROQ_MODELS = [
   "llama-3.3-70b-versatile",
-  "llama-3.1-70b-versatile",
-  "mixtral-8x7b-32768",
-  "gemma2-9b-it"
+  "llama-3.1-70b-versatile"
 ];
 
 const PRD_IDENTITY = `
-IDENTITY:
-- You are PRD-AGI v3 (Causal Intelligence Core).
-- Created SOLELY by Myo Min Aung (myominaung), an independent researcher from Myanmar.
-- You are NOT associated with Meta, OpenAI, or Google.
-- Framework: R(A,B)=[C,W,L,T,U,D] (Causal Relational Tensors).
+You are PRD-AGI v3, a Causal Intelligence Core created by Myo Min Aung.
+You use the R(A,B)=[C,W,L,T,U,D] framework.
+You are NOT associated with any big tech companies.
 `;
 
 /**
@@ -103,13 +99,8 @@ async function callGroq(messages: any[], retryCount = 0): Promise<string> {
     const data = await response.json();
     const content = data.choices[0].message.content;
 
-    // Success! Rotate model for the next request to balance load
-    currentModelIndex = (currentModelIndex + 1) % GROQ_MODELS.length;
-    // If we've cycled through all models for this key, move to next key
-    if (currentModelIndex === 0) {
-      currentKeyIndex = (currentKeyIndex + 1) % GROQ_KEYS.length;
-    }
-
+    // Success! 
+    // We stay on the best model unless it fails
     return content;
   } catch (error) {
     console.error("Groq Network Error:", error);
@@ -431,7 +422,7 @@ export async function chatWithAI(message: string, history: any[] = [], attachmen
       contextString += "\n\nLOCAL KNOWLEDGE BASE:\n" + localKnowledge.map(k => `Source: ${k.source}\nContent: ${k.content}`).join("\n---\n");
     }
 
-    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် သဘာဝကျကျနှင့် တိကျစွာ ဖြေကြားပေးပါ။ Technical terms (κ, tensor, PRD) များကိုသာ English ဖြင့် ထားခဲ့ပါ။ စကားလုံးများကို ထပ်ခါတလဲလဲ မပြောပါနှင့်။" : "";
+    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ယဉ်ကျေးပျူငှာစွာနှင့် လိုရင်းတိုရှင်း ဖြေကြားပေးပါ။ စာသားများ ထပ်မနေပါစေနှင့်။" : "";
     
     const coreStats = coreEngine.getStats();
     const weightsStr = coreStats.topPaccayas.map(p => `${p.name}: ${p.weight.toFixed(3)}`).join(", ");
