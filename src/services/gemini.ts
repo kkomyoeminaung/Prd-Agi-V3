@@ -251,7 +251,12 @@ async function callAnthropic(messages: any[], retryCount = 0): Promise<string> {
  * Master AI Caller (Rotates through providers if one fails)
  */
 async function callAI(messages: any[]): Promise<string> {
-  // Priority: Groq -> OpenAI -> Anthropic -> Cerebras
+  // Priority: Groq -> OpenAI -> Anthropic -> Gemini
+  
+  if (!BACKEND_URL && GROQ_KEYS.length === 0 && OPENAI_KEYS.length === 0 && ANTHROPIC_KEYS.length === 0 && GEMINI_KEYS.length === 0) {
+    throw new Error("Neural Core not configured. Please set VITE_BACKEND_URL in your environment variables (Cloudflare Pages Settings) to connect to your backend worker.");
+  }
+
   try {
     console.log("Attempting Groq...");
     return await callGroq(messages);
@@ -266,82 +271,73 @@ async function callAI(messages: any[]): Promise<string> {
         console.log("Attempting Anthropic...");
         return await callAnthropic(messages);
       } catch (e3: any) {
-        console.warn(`Anthropic failed: ${e3.message}. Trying Cerebras...`);
+        console.warn(`Anthropic failed: ${e3.message}. Trying Gemini...`);
         try {
-          console.log("Attempting Cerebras...");
-          return await callCerebras(messages);
+          console.log("Attempting Gemini...");
+          return await callGemini(messages);
         } catch (e4: any) {
           console.error("All AI providers failed.");
-          throw new Error(`All providers failed. Last error: ${e4.message}`);
+          throw new Error(`All providers failed. Ensure your Backend Worker is online and VITE_BACKEND_URL is set. Last error: ${e4.message}`);
         }
       }
     }
   }
 }
 
-// Cerebras API Configuration (Fallback or alternative)
-const CEREBRAS_ENDPOINT = "https://api.cerebras.ai/v1/chat/completions";
-
-const getCerebrasKey = () => {
-  const apiKey = import.meta.env.VITE_CEREBRAS_API_KEY;
-  if (!apiKey || apiKey === "undefined") {
-    throw new Error("VITE_CEREBRAS_API_KEY is not configured.");
-  }
-  return apiKey;
-};
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
-
-async function callCerebras(messages: any[]) {
-  // If backend URL is provided, use it to proxy the request
+/**
+ * Calls Gemini API with Round-robin logic
+ */
+async function callGemini(messages: any[], retryCount = 0): Promise<string> {
   if (BACKEND_URL) {
     try {
-      const response = await fetch(BACKEND_URL, {
+      const response = await fetchWithTimeout(BACKEND_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          provider: "cerebras",
-          model: "llama3.1-8b",
+          provider: "gemini",
+          model: "gemini-1.5-flash",
           messages: messages,
           temperature: 0.7
         })
-      });
-
+      }, 15000);
+      
       if (!response.ok) {
-        throw new Error("Backend proxy failed");
+        const errText = await response.text();
+        throw new Error(`Proxy failed: ${errText}`);
       }
-
       const data = await response.json();
-      return data.choices[0].message.content;
-    } catch (error) {
-      console.error("Backend Proxy Error:", error);
+      if (data.error) throw new Error(data.error);
+      // Gemini response structure might differ depending on your worker implementation
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || data.text || "No response from Gemini";
+    } catch (error: any) {
+      console.error("Gemini Proxy Error:", error);
+      if (GEMINI_KEYS.length === 0) throw error;
     }
   }
 
-  const apiKey = getCerebrasKey();
-  
-  const response = await fetch(CEREBRAS_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: "llama3.1-8b",
-      messages: messages,
-      temperature: 0.7,
-      max_tokens: 2048
-    })
-  });
+  if (GEMINI_KEYS.length === 0) throw new Error("No Gemini Keys configured.");
+  if (retryCount >= GEMINI_KEYS.length) throw new Error("All Gemini Keys failed.");
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error?.message || "Cerebras API Request Failed");
+  const apiKey = GEMINI_KEYS[geminiKeyIdx];
+  try {
+    const genAI = new GoogleGenAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    
+    const result = await model.generateContent({
+      contents: messages.map(m => ({
+        role: m.role === 'system' ? 'user' : (m.role === 'assistant' ? 'model' : 'user'),
+        parts: [{ text: m.content }]
+      }))
+    });
+    
+    return result.response.text();
+  } catch (error) {
+    geminiKeyIdx = (geminiKeyIdx + 1) % GEMINI_KEYS.length;
+    return await callGemini(messages, retryCount + 1);
   }
-
-  const data = await response.json();
-  return data.choices[0].message.content;
 }
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 export async function searchWithAI(message: string, history: any[] = [], language: 'en' | 'my' = 'en') {
   try {
