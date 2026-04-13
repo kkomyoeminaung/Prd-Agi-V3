@@ -3,6 +3,7 @@ import { prdDB } from "../lib/db";
 import { SearchService } from "./search";
 import { coreEngine } from "./coreEngine";
 
+// PRD-AGI v3.1 - Clean Build (Cerebras Removed)
 // Groq API Configuration
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
