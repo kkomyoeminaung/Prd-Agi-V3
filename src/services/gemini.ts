@@ -79,16 +79,21 @@ async function callGroq(messages: any[], retryCount = 0): Promise<string> {
           temperature: 0.7
         })
       });
-      if (!response.ok) throw new Error("Proxy failed");
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Proxy failed: ${errText}`);
+      }
       const data = await response.json();
+      if (data.error) throw new Error(data.error);
       return data.choices[0].message.content;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Groq Proxy Error:", error);
+      if (GROQ_KEYS.length === 0) throw error;
     }
   }
 
-  if (GROQ_KEYS.length === 0) throw new Error("No Groq Keys");
-  if (retryCount >= GROQ_KEYS.length) throw new Error("All Groq Keys failed");
+  if (GROQ_KEYS.length === 0) throw new Error("No Groq Keys configured in App or Proxy.");
+  if (retryCount >= GROQ_KEYS.length) throw new Error("All Groq Keys failed or rate limited.");
 
   const apiKey = GROQ_KEYS[groqKeyIdx];
   try {
@@ -122,16 +127,21 @@ async function callOpenAI(messages: any[], retryCount = 0): Promise<string> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider: "openai", model, messages, temperature: 0.7 })
       });
-      if (!response.ok) throw new Error("Proxy failed");
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Proxy failed: ${errText}`);
+      }
       const data = await response.json();
+      if (data.error) throw new Error(data.error);
       return data.choices[0].message.content;
-    } catch (error) {
+    } catch (error: any) {
       console.error("OpenAI Proxy Error:", error);
+      if (OPENAI_KEYS.length === 0) throw error;
     }
   }
 
-  if (OPENAI_KEYS.length === 0) throw new Error("No OpenAI Keys");
-  if (retryCount >= OPENAI_KEYS.length) throw new Error("All OpenAI Keys failed");
+  if (OPENAI_KEYS.length === 0) throw new Error("No OpenAI Keys configured in App or Proxy.");
+  if (retryCount >= OPENAI_KEYS.length) throw new Error("All OpenAI Keys failed or rate limited.");
 
   const apiKey = OPENAI_KEYS[openaiKeyIdx];
   try {
@@ -165,16 +175,21 @@ async function callAnthropic(messages: any[], retryCount = 0): Promise<string> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider: "anthropic", model, messages, temperature: 0.7 })
       });
-      if (!response.ok) throw new Error("Proxy failed");
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Proxy failed: ${errText}`);
+      }
       const data = await response.json();
+      if (data.error) throw new Error(data.error);
       return data.content[0].text;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Anthropic Proxy Error:", error);
+      if (ANTHROPIC_KEYS.length === 0) throw error;
     }
   }
 
-  if (ANTHROPIC_KEYS.length === 0) throw new Error("No Anthropic Keys");
-  if (retryCount >= ANTHROPIC_KEYS.length) throw new Error("All Anthropic Keys failed");
+  if (ANTHROPIC_KEYS.length === 0) throw new Error("No Anthropic Keys configured in App or Proxy.");
+  if (retryCount >= ANTHROPIC_KEYS.length) throw new Error("All Anthropic Keys failed or rate limited.");
 
   const apiKey = ANTHROPIC_KEYS[anthropicKeyIdx];
   try {
@@ -210,18 +225,27 @@ async function callAnthropic(messages: any[], retryCount = 0): Promise<string> {
 async function callAI(messages: any[]): Promise<string> {
   // Priority: Groq -> OpenAI -> Anthropic -> Cerebras
   try {
+    console.log("Attempting Groq...");
     return await callGroq(messages);
-  } catch (e) {
-    console.warn("Groq failed, trying OpenAI...");
+  } catch (e: any) {
+    console.warn(`Groq failed: ${e.message}. Trying OpenAI...`);
     try {
+      console.log("Attempting OpenAI...");
       return await callOpenAI(messages);
-    } catch (e2) {
-      console.warn("OpenAI failed, trying Anthropic...");
+    } catch (e2: any) {
+      console.warn(`OpenAI failed: ${e2.message}. Trying Anthropic...`);
       try {
+        console.log("Attempting Anthropic...");
         return await callAnthropic(messages);
-      } catch (e3) {
-        console.warn("Anthropic failed, trying Cerebras...");
-        return await callCerebras(messages);
+      } catch (e3: any) {
+        console.warn(`Anthropic failed: ${e3.message}. Trying Cerebras...`);
+        try {
+          console.log("Attempting Cerebras...");
+          return await callCerebras(messages);
+        } catch (e4: any) {
+          console.error("All AI providers failed.");
+          throw new Error(`All providers failed. Last error: ${e4.message}`);
+        }
       }
     }
   }
@@ -318,7 +342,8 @@ export async function searchWithAI(message: string, history: any[] = [], languag
 
 function formatAIError(error: any) {
   const msg = error.message || String(error);
-  // Handle quota, balance, rate limit, and generic connection errors
+  console.error("Formatting AI Error:", msg);
+
   if (
     msg.includes("429") || 
     msg.includes("RESOURCE_EXHAUSTED") || 
@@ -326,14 +351,18 @@ function formatAIError(error: any) {
     msg.includes("balance") ||
     msg.includes("Insufficient Balance")
   ) {
-    return "⚠️ အသုံးပြုမှု များပြားနေပါသည်။ ခဏစောင့်ပြီးမှ ပြန်လည်ကြိုးစားပေးပါခင်ဗျာ။ (Please wait a moment before trying again.)";
+    return "⚠️ အသုံးပြုမှု များပြားနေပါသည်။ ခဏစောင့်ပြီးမှ ပြန်လည်ကြိုးစားပေးပါခင်ဗျာ။ (Quota/Rate Limit Exceeded)";
   }
   
-  if (msg.includes("API key")) {
-    return "Error: Neural Core connection failed. Please check your configuration.";
+  if (msg.includes("API key") || msg.includes("configured") || msg.includes("Keys")) {
+    return `Error: Neural Core connection failed. (${msg})`;
+  }
+
+  if (msg.includes("Failed to fetch") || msg.includes("Proxy failed")) {
+    return `⚠️ Neural connection failed. Please check if VITE_BACKEND_URL is correct and the Worker is running. (${msg})`;
   }
   
-  return "⚠️ စနစ်အတွင်း အနည်းငယ် ကြန့်ကြာမှု ရှိနေပါသည်။ ခဏစောင့်ပေးပါ။";
+  return `⚠️ စနစ်အတွင်း အနည်းငယ် ကြန့်ကြာမှု ရှိနေပါသည်။ (${msg})`;
 }
 
 export async function explainResults(queryResult: any, context: string = "", language: 'en' | 'my' = 'en') {
