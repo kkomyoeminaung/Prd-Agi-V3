@@ -35,6 +35,7 @@ const ANTHROPIC_KEYS = [
 
 const GEMINI_KEYS = [
   process.env.GEMINI_API_KEY,
+  import.meta.env.VITE_GEMINI_API_KEY,
   import.meta.env.VITE_GEMINI_API_KEY_2,
   import.meta.env.VITE_GEMINI_API_KEY_3,
   import.meta.env.VITE_GEMINI_API_KEY_4,
@@ -277,8 +278,8 @@ async function callAI(messages: any[]): Promise<string> {
           console.log("Attempting Gemini...");
           return await callGemini(messages);
         } catch (e4: any) {
-          console.error("All AI providers failed.");
-          throw new Error(`All providers failed. Ensure your Backend Worker is online and VITE_BACKEND_URL is set. Last error: ${e4.message}`);
+          console.error("All AI providers failed.", e4);
+          throw new Error(`Neural Core connection failed. Last error: ${e4.message}`);
         }
       }
     }
@@ -296,7 +297,7 @@ async function callGemini(messages: any[], retryCount = 0): Promise<string> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           provider: "gemini",
-          model: "gemini-2.5-flash",
+          model: "gemini-2.0-flash",
           messages: messages,
           temperature: 0.7
         })
@@ -324,7 +325,7 @@ async function callGemini(messages: any[], retryCount = 0): Promise<string> {
     const ai = new GoogleGenAI({ apiKey: apiKey });
     
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.0-flash",
       contents: messages.map(m => ({
         role: m.role === 'system' ? 'user' : (m.role === 'assistant' ? 'model' : 'user'),
         parts: [{ text: m.content }]
@@ -332,7 +333,8 @@ async function callGemini(messages: any[], retryCount = 0): Promise<string> {
     });
     
     return response.text || "";
-  } catch (error) {
+  } catch (error: any) {
+    console.error("Gemini API Error:", error);
     geminiKeyIdx = (geminiKeyIdx + 1) % GEMINI_KEYS.length;
     return await callGemini(messages, retryCount + 1);
   }
@@ -344,7 +346,7 @@ export async function searchWithAI(message: string, history: any[] = [], languag
   try {
     const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေပါ။ သို့သော် technical terms (κ, tensor, PRD) များကို English ဖြင့် ထားပါ။" : "";
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.0-flash",
       contents: [
         ...history.map(h => ({
           role: h.role === 'user' ? 'user' : 'model',
@@ -380,7 +382,7 @@ function formatAIError(error: any) {
   }
   
   if (msg.includes("API key") || msg.includes("configured") || msg.includes("Keys")) {
-    return `Error: Neural Core connection failed. (${msg})`;
+    return `⚠️ Error: Neural Core connection failed. Please check your API keys. (${msg})`;
   }
 
   if (msg.includes("Failed to fetch") || msg.includes("Proxy failed")) {
