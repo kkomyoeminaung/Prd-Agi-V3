@@ -296,7 +296,7 @@ async function callGemini(messages: any[], retryCount = 0): Promise<string> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           provider: "gemini",
-          model: "gemini-1.5-flash",
+          model: "gemini-2.5-flash",
           messages: messages,
           temperature: 0.7
         })
@@ -321,17 +321,17 @@ async function callGemini(messages: any[], retryCount = 0): Promise<string> {
 
   const apiKey = GEMINI_KEYS[geminiKeyIdx];
   try {
-    const genAI = new GoogleGenAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const ai = new GoogleGenAI({ apiKey: apiKey });
     
-    const result = await model.generateContent({
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
       contents: messages.map(m => ({
         role: m.role === 'system' ? 'user' : (m.role === 'assistant' ? 'model' : 'user'),
         parts: [{ text: m.content }]
       }))
     });
     
-    return result.response.text();
+    return response.text || "";
   } catch (error) {
     geminiKeyIdx = (geminiKeyIdx + 1) % GEMINI_KEYS.length;
     return await callGemini(messages, retryCount + 1);
@@ -344,7 +344,7 @@ export async function searchWithAI(message: string, history: any[] = [], languag
   try {
     const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေပါ။ သို့သော် technical terms (κ, tensor, PRD) များကို English ဖြင့် ထားပါ။" : "";
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: [
         ...history.map(h => ({
           role: h.role === 'user' ? 'user' : 'model',
