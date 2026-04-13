@@ -38,12 +38,24 @@ export class SearchService {
         const response = await fetch(proxyUrl);
         if (response.ok) {
           const data = await response.json();
-          // AllOrigins wraps the response in a 'contents' field
-          const json = proxy.includes('allorigins') ? JSON.parse(data.contents) : data;
+          let json;
+          
+          if (proxy.includes('allorigins')) {
+            if (!data.contents) continue;
+            try {
+              json = JSON.parse(data.contents);
+            } catch (e) {
+              console.error("Failed to parse AllOrigins contents:", e);
+              continue;
+            }
+          } else {
+            json = data;
+          }
+          
           return this.parseDDG(json);
         }
       } catch (e) {
-        console.error(`Proxy ${proxy} failed:`, e);
+        console.warn(`Proxy ${proxy} failed:`, e.message || e);
       }
     }
 

@@ -26,7 +26,7 @@ export interface DreamLog {
 
 class PRDDatabase {
   private dbName = 'prd_agi_v3_db';
-  private version = 1;
+  private version = 2;
   private db: IDBPDatabase | null = null;
 
   async getDB() {

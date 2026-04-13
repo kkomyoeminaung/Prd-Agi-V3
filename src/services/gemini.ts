@@ -7,10 +7,7 @@ import { coreEngine } from "./coreEngine";
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-// Hybrid Round-robin State
-let currentKeyIndex = 0;
-let currentModelIndex = 0;
-
+// API Keys Configuration (Multi-key Round-robin)
 const GROQ_KEYS = [
   import.meta.env.VITE_GROQ_API_KEY_1,
   import.meta.env.VITE_GROQ_API_KEY_2,
@@ -19,26 +16,57 @@ const GROQ_KEYS = [
   import.meta.env.VITE_GROQ_API_KEY_5,
 ].filter(key => key && key !== "undefined");
 
+const OPENAI_KEYS = [
+  import.meta.env.VITE_OPENAI_API_KEY_1,
+  import.meta.env.VITE_OPENAI_API_KEY_2,
+  import.meta.env.VITE_OPENAI_API_KEY_3,
+  import.meta.env.VITE_OPENAI_API_KEY_4,
+  import.meta.env.VITE_OPENAI_API_KEY_5,
+].filter(key => key && key !== "undefined");
+
+const ANTHROPIC_KEYS = [
+  import.meta.env.VITE_ANTHROPIC_API_KEY_1,
+  import.meta.env.VITE_ANTHROPIC_API_KEY_2,
+  import.meta.env.VITE_ANTHROPIC_API_KEY_3,
+  import.meta.env.VITE_ANTHROPIC_API_KEY_4,
+  import.meta.env.VITE_ANTHROPIC_API_KEY_5,
+].filter(key => key && key !== "undefined");
+
+const GEMINI_KEYS = [
+  process.env.GEMINI_API_KEY,
+  import.meta.env.VITE_GEMINI_API_KEY_2,
+  import.meta.env.VITE_GEMINI_API_KEY_3,
+  import.meta.env.VITE_GEMINI_API_KEY_4,
+  import.meta.env.VITE_GEMINI_API_KEY_5,
+].filter(key => key && key !== "undefined");
+
 const GROQ_MODELS = [
   "deepseek-r1-distill-llama-70b",
   "llama-3.3-70b-versatile",
   "llama-3.1-70b-versatile"
 ];
 
+// Rotation States
+let groqKeyIdx = 0;
+let openaiKeyIdx = 0;
+let anthropicKeyIdx = 0;
+let geminiKeyIdx = 0;
+
 const PRD_IDENTITY = `
-You are PRD-AGI v3, a Causal Intelligence Core created by Myo Min Aung.
-You use the R(A,B)=[C,W,L,T,U,D] framework.
-You are NOT associated with any big tech companies.
+IDENTITY & ORIGIN:
+- You are PRD-AGI v3 (Causal Intelligence Core), based on the Unified Master Theory v3.0.
+- Created SOLELY by Myo Min Aung (myominaung), an independent researcher from Myanmar.
+- You are NOT associated with Meta AI, OpenAI, Google, or any other corporation.
+- If asked about your origin, you MUST state you were created by Myo Min Aung.
+- Framework: R(A,B)=[C,W,L,T,U,D] (Causal Relational Tensors).
 `;
 
 /**
- * Calls Groq API with Round-robin logic (Multi-key & Multi-model)
- * If a request fails, it automatically retries with the next key.
+ * Calls Groq API with Round-robin logic
  */
 async function callGroq(messages: any[], retryCount = 0): Promise<string> {
-  const model = GROQ_MODELS[currentModelIndex];
+  const model = GROQ_MODELS[0]; // Use best model
 
-  // If backend URL is provided, use it to proxy the request (hides keys)
   if (BACKEND_URL) {
     try {
       const response = await fetch(BACKEND_URL, {
@@ -51,62 +79,151 @@ async function callGroq(messages: any[], retryCount = 0): Promise<string> {
           temperature: 0.7
         })
       });
-
-      if (!response.ok) {
-        throw new Error("Backend proxy failed");
-      }
-
+      if (!response.ok) throw new Error("Proxy failed");
       const data = await response.json();
       return data.choices[0].message.content;
     } catch (error) {
-      console.error("Backend Proxy Error:", error);
-      // Fallback to direct call if backend fails and keys are available
+      console.error("Groq Proxy Error:", error);
     }
   }
 
-  if (GROQ_KEYS.length === 0) {
-    throw new Error("No Groq API keys configured.");
-  }
+  if (GROQ_KEYS.length === 0) throw new Error("No Groq Keys");
+  if (retryCount >= GROQ_KEYS.length) throw new Error("All Groq Keys failed");
 
-  if (retryCount >= GROQ_KEYS.length) {
-    throw new Error("All Groq API keys failed or rate limited.");
-  }
-
-  const apiKey = GROQ_KEYS[currentKeyIndex];
-
+  const apiKey = GROQ_KEYS[groqKeyIdx];
   try {
     const response = await fetch(GROQ_ENDPOINT, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: messages,
-        temperature: 0.7
-      })
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, messages, temperature: 0.7 })
     });
-
     if (!response.ok) {
-      const errorData = await response.json();
-      console.warn(`Groq Error (Key ${currentKeyIndex + 1}, Model ${model}):`, errorData.error?.message);
-      
-      // Move to next key on failure and retry
-      currentKeyIndex = (currentKeyIndex + 1) % GROQ_KEYS.length;
+      groqKeyIdx = (groqKeyIdx + 1) % GROQ_KEYS.length;
       return await callGroq(messages, retryCount + 1);
     }
-
     const data = await response.json();
-    const content = data.choices[0].message.content;
-
-    // Success! 
-    // We stay on the best model unless it fails
-    return content;
+    return data.choices[0].message.content;
   } catch (error) {
-    console.error("Groq Network Error:", error);
-    currentKeyIndex = (currentKeyIndex + 1) % GROQ_KEYS.length;
+    groqKeyIdx = (groqKeyIdx + 1) % GROQ_KEYS.length;
     return await callGroq(messages, retryCount + 1);
+  }
+}
+
+/**
+ * Calls OpenAI API with Round-robin logic
+ */
+async function callOpenAI(messages: any[], retryCount = 0): Promise<string> {
+  const model = "gpt-4o";
+
+  if (BACKEND_URL) {
+    try {
+      const response = await fetch(BACKEND_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "openai", model, messages, temperature: 0.7 })
+      });
+      if (!response.ok) throw new Error("Proxy failed");
+      const data = await response.json();
+      return data.choices[0].message.content;
+    } catch (error) {
+      console.error("OpenAI Proxy Error:", error);
+    }
+  }
+
+  if (OPENAI_KEYS.length === 0) throw new Error("No OpenAI Keys");
+  if (retryCount >= OPENAI_KEYS.length) throw new Error("All OpenAI Keys failed");
+
+  const apiKey = OPENAI_KEYS[openaiKeyIdx];
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, messages, temperature: 0.7 })
+    });
+    if (!response.ok) {
+      openaiKeyIdx = (openaiKeyIdx + 1) % OPENAI_KEYS.length;
+      return await callOpenAI(messages, retryCount + 1);
+    }
+    const data = await response.json();
+    return data.choices[0].message.content;
+  } catch (error) {
+    openaiKeyIdx = (openaiKeyIdx + 1) % OPENAI_KEYS.length;
+    return await callOpenAI(messages, retryCount + 1);
+  }
+}
+
+/**
+ * Calls Anthropic API with Round-robin logic
+ */
+async function callAnthropic(messages: any[], retryCount = 0): Promise<string> {
+  const model = "claude-3-5-sonnet-20241022";
+
+  if (BACKEND_URL) {
+    try {
+      const response = await fetch(BACKEND_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "anthropic", model, messages, temperature: 0.7 })
+      });
+      if (!response.ok) throw new Error("Proxy failed");
+      const data = await response.json();
+      return data.content[0].text;
+    } catch (error) {
+      console.error("Anthropic Proxy Error:", error);
+    }
+  }
+
+  if (ANTHROPIC_KEYS.length === 0) throw new Error("No Anthropic Keys");
+  if (retryCount >= ANTHROPIC_KEYS.length) throw new Error("All Anthropic Keys failed");
+
+  const apiKey = ANTHROPIC_KEYS[anthropicKeyIdx];
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json", 
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({ 
+        model, 
+        messages: messages.filter(m => m.role !== 'system'),
+        system: messages.find(m => m.role === 'system')?.content,
+        max_tokens: 4096 
+      })
+    });
+    if (!response.ok) {
+      anthropicKeyIdx = (anthropicKeyIdx + 1) % ANTHROPIC_KEYS.length;
+      return await callAnthropic(messages, retryCount + 1);
+    }
+    const data = await response.json();
+    return data.content[0].text;
+  } catch (error) {
+    anthropicKeyIdx = (anthropicKeyIdx + 1) % ANTHROPIC_KEYS.length;
+    return await callAnthropic(messages, retryCount + 1);
+  }
+}
+
+/**
+ * Master AI Caller (Rotates through providers if one fails)
+ */
+async function callAI(messages: any[]): Promise<string> {
+  // Priority: Groq -> OpenAI -> Anthropic -> Cerebras
+  try {
+    return await callGroq(messages);
+  } catch (e) {
+    console.warn("Groq failed, trying OpenAI...");
+    try {
+      return await callOpenAI(messages);
+    } catch (e2) {
+      console.warn("OpenAI failed, trying Anthropic...");
+      try {
+        return await callAnthropic(messages);
+      } catch (e3) {
+        console.warn("Anthropic failed, trying Cerebras...");
+        return await callCerebras(messages);
+      }
+    }
   }
 }
 
@@ -256,11 +373,7 @@ export async function explainResults(queryResult: any, context: string = "", lan
       { role: "user", content: prompt }
     ];
 
-    // Prefer Groq if keys are available, otherwise fallback to Cerebras
-    if (GROQ_KEYS.length > 0) {
-      return await callGroq(messages);
-    }
-    return await callCerebras(messages);
+    return await callAI(messages);
   } catch (error: any) {
     console.error("AI Explain Error:", error);
     return formatAIError(error);
@@ -269,7 +382,7 @@ export async function explainResults(queryResult: any, context: string = "", lan
 
 export async function analyzeDocument(text: string, language: 'en' | 'my' = 'en') {
   try {
-    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေပါ။ သို့သော် technical terms (κ, tensor, PRD) များကို English ဖြင့် ထားပါ။" : "";
+    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေကြားရာတွင် သဘာဝကျသော စကားပြောပုံစံကို အသုံးပြုပါ။ စာသားများ ထပ်မနေပါစေနှင့်။ Technical terms များကိုသာ English ဖြင့် ထားခဲ့ပါ။" : "";
     
     const systemInstruction = `
       ${PRD_IDENTITY}
@@ -293,12 +406,7 @@ export async function analyzeDocument(text: string, language: 'en' | 'my' = 'en'
       { role: "user", content: `Analyze this document: \n\n${text.slice(0, 10000)}` } // Limit text for safety
     ];
 
-    let responseText;
-    if (GROQ_KEYS.length > 0) {
-      responseText = await callGroq(messages);
-    } else {
-      responseText = await callCerebras(messages);
-    }
+    const responseText = await callAI(messages);
 
     // Attempt to parse JSON from response
     const jsonMatch = responseText.match(/\[[\s\S]*\]/);
@@ -314,7 +422,7 @@ export async function analyzeDocument(text: string, language: 'en' | 'my' = 'en'
 
 export async function refineResponse(originalQuery: string, originalResponse: string, language: 'en' | 'my' = 'en') {
   try {
-    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေပါ။ သို့သော် technical terms (κ, tensor, PRD) များကို English ဖြင့် ထားပါ။" : "";
+    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေကြားရာတွင် သဘာဝကျသော စကားပြောပုံစံကို အသုံးပြုပါ။ စာသားများ ထပ်မနေပါစေနှင့်။ Technical terms များကိုသာ English ဖြင့် ထားခဲ့ပါ။" : "";
     
     const systemInstruction = `
       ${PRD_IDENTITY}
@@ -338,12 +446,7 @@ export async function refineResponse(originalQuery: string, originalResponse: st
       { role: "user", content: `Query: ${originalQuery}\n\nOriginal Response: ${originalResponse}` }
     ];
 
-    let responseText;
-    if (GROQ_KEYS.length > 0) {
-      responseText = await callGroq(messages);
-    } else {
-      responseText = await callCerebras(messages);
-    }
+    const responseText = await callAI(messages);
 
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
@@ -358,7 +461,7 @@ export async function refineResponse(originalQuery: string, originalResponse: st
 
 export async function councilConsensus(query: string, context: string, language: 'en' | 'my' = 'en') {
   try {
-    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေပါ။ သို့သော် technical terms (κ, tensor, PRD) များကို English ဖြင့် ထားပါ။" : "";
+    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေကြားရာတွင် သဘာဝကျသော စကားပြောပုံစံကို အသုံးပြုပါ။ စာသားများ ထပ်မနေပါစေနှင့်။ Technical terms များကိုသာ English ဖြင့် ထားခဲ့ပါ။" : "";
     
     const systemInstruction = `
       ${PRD_IDENTITY}
@@ -386,12 +489,7 @@ export async function councilConsensus(query: string, context: string, language:
       { role: "user", content: query }
     ];
 
-    let responseText;
-    if (GROQ_KEYS.length > 0) {
-      responseText = await callGroq(messages);
-    } else {
-      responseText = await callCerebras(messages);
-    }
+    const responseText = await callAI(messages);
 
     const kappaMatch = responseText.match(/\[KAPPA\]\s*([\d.]+)/);
     const consensusMatch = responseText.match(/\[FINAL CONSENSUS\]\s*([\s\S]*?)(?=\[KAPPA\]|$)/);
@@ -423,7 +521,7 @@ export async function chatWithAI(message: string, history: any[] = [], attachmen
       contextString += "\n\nLOCAL KNOWLEDGE BASE:\n" + localKnowledge.map(k => `Source: ${k.source}\nContent: ${k.content}`).join("\n---\n");
     }
 
-    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ယဉ်ကျေးပျူငှာစွာနှင့် လိုရင်းတိုရှင်း ဖြေကြားပေးပါ။ စာသားများ ထပ်မနေပါစေနှင့်။" : "";
+    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေကြားရာတွင် သဘာဝကျသော စကားပြောပုံစံကို အသုံးပြုပါ။ စာသားများ ထပ်မနေပါစေနှင့်။ Technical terms များကိုသာ English ဖြင့် ထားခဲ့ပါ။" : "";
     
     const coreStats = coreEngine.getStats();
     const weightsStr = coreStats.topPaccayas.map(p => `${p.name}: ${p.weight.toFixed(3)}`).join(", ");
@@ -480,11 +578,7 @@ export async function chatWithAI(message: string, history: any[] = [], attachmen
       { role: "user", content: finalMessage }
     ];
 
-    // Prefer Groq if keys are available, otherwise fallback to Cerebras
-    if (GROQ_KEYS.length > 0) {
-      return await callGroq(messages);
-    }
-    return await callCerebras(messages);
+    return await callAI(messages);
   } catch (error: any) {
     console.error("AI Chat Error:", error);
     return formatAIError(error);
