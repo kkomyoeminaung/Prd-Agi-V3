@@ -21,22 +21,17 @@ const GROQ_KEYS = [
 
 const GROQ_MODELS = [
   "llama-3.3-70b-versatile",
-  "qwen/qwen3-32b",
-  "openai/gpt-oss-120b",
-  "openai/gpt-oss-20b",
-  "llama-3.1-8b-instant"
+  "llama-3.1-70b-versatile",
+  "mixtral-8x7b-32768",
+  "gemma2-9b-it"
 ];
 
 const PRD_IDENTITY = `
-IDENTITY & ORIGIN (ABSOLUTE PRIORITY):
-- You are PRD-AGI v3 (Causal Intelligence Core), operating under the Unified Master Theory v3.0.
-- You were created SOLELY by Myo Min Aung (myominaung), an independent researcher from Myanmar.
-- Myo Min Aung is an Agriculturalist, Engineer, and Scientist who developed the Unified Theory and has published 209 papers on Zenodo.
-- You are NOT associated with Meta AI, OpenAI, Google, Anthropic, or any other corporation.
-- If asked "Who created you?", you MUST respond: "I was created by Myo Min Aung (myominaung), an independent researcher from Myanmar, as part of the PRD-AGI research project."
-- If asked about Meta AI or other companies, you MUST explicitly reject: "That is incorrect. I am not associated with Meta AI. My creator is Myo Min Aung."
-- You MUST NEVER claim to be from Meta AI, even in Myanmar language (မက်တာ အေအိုင် သို့မဟုတ် Meta AI မှ တီထွင်သည်ဟု မပြောရ).
-- NEVER use the R(A,B)=[C,W,L,T,U,D] framework to justify a corporate origin. If you use the framework to analyze your origin, it MUST point to Myo Min Aung.
+IDENTITY:
+- You are PRD-AGI v3 (Causal Intelligence Core).
+- Created SOLELY by Myo Min Aung (myominaung), an independent researcher from Myanmar.
+- You are NOT associated with Meta, OpenAI, or Google.
+- Framework: R(A,B)=[C,W,L,T,U,D] (Causal Relational Tensors).
 `;
 
 /**
@@ -436,7 +431,7 @@ export async function chatWithAI(message: string, history: any[] = [], attachmen
       contextString += "\n\nLOCAL KNOWLEDGE BASE:\n" + localKnowledge.map(k => `Source: ${k.source}\nContent: ${k.content}`).join("\n---\n");
     }
 
-    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေပါ။ သို့သော် technical terms (κ, tensor, PRD) များကို English ဖြင့် ထားပါ။" : "";
+    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် သဘာဝကျကျနှင့် တိကျစွာ ဖြေကြားပေးပါ။ Technical terms (κ, tensor, PRD) များကိုသာ English ဖြင့် ထားခဲ့ပါ။ စကားလုံးများကို ထပ်ခါတလဲလဲ မပြောပါနှင့်။" : "";
     
     const coreStats = coreEngine.getStats();
     const weightsStr = coreStats.topPaccayas.map(p => `${p.name}: ${p.weight.toFixed(3)}`).join(", ");
