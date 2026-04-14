@@ -152,24 +152,25 @@ async function callAI(messages: any[]): Promise<string> {
     throw new Error("Neural Core not configured. Please set VITE_BACKEND_URL to connect to your backend worker.");
   }
 
+  // Priority: Gemini (Local/Direct) -> Groq -> OpenAI -> Anthropic
   try {
-    console.log("Attempting Groq...");
-    return await callGroq(messages);
+    console.log("Attempting Gemini...");
+    return await callGemini(messages);
   } catch (e: any) {
-    console.warn(`Groq failed: ${e.message}. Trying OpenAI...`);
+    console.warn(`Gemini failed: ${e.message}. Trying Groq...`);
     try {
-      console.log("Attempting OpenAI...");
-      return await callOpenAI(messages);
+      console.log("Attempting Groq...");
+      return await callGroq(messages);
     } catch (e2: any) {
-      console.warn(`OpenAI failed: ${e2.message}. Trying Anthropic...`);
+      console.warn(`Groq failed: ${e2.message}. Trying OpenAI...`);
       try {
-        console.log("Attempting Anthropic...");
-        return await callAnthropic(messages);
+        console.log("Attempting OpenAI...");
+        return await callOpenAI(messages);
       } catch (e3: any) {
-        console.warn(`Anthropic failed: ${e3.message}. Trying Gemini...`);
+        console.warn(`OpenAI failed: ${e3.message}. Trying Anthropic...`);
         try {
-          console.log("Attempting Gemini...");
-          return await callGemini(messages);
+          console.log("Attempting Anthropic...");
+          return await callAnthropic(messages);
         } catch (e4: any) {
           console.error("All AI providers failed.", e4);
           throw new Error(`Neural Core connection failed. All providers exhausted. Last error: ${e4.message}`);

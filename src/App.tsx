@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import jsPDF from 'jspdf';
 import { engine, MasterResponse, QueryResult, FusionResponse } from './lib/master-engine';
 import { CurvatureDashboard } from './components/CurvatureDashboard';
 import { CausalFlowDiagram } from './components/CausalFlowDiagram';
@@ -118,14 +119,44 @@ export default function App() {
   };
 
   const exportChat = () => {
-    const content = chatHistory.map(h => `${h.role === 'user' ? 'USER' : 'AI'}: ${h.content}`).join('\n\n');
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `prd-agi-chat-${new Date().toISOString().slice(0,10)}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const doc = new jsPDF();
+      doc.setFontSize(16);
+      doc.text("PRD-AGI Neural Chat Export", 10, 10);
+      doc.setFontSize(10);
+      doc.text(`Date: ${new Date().toLocaleString()}`, 10, 18);
+      
+      let y = 30;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 10;
+      const maxLineWidth = pageWidth - margin * 2;
+
+      chatHistory.forEach((h, i) => {
+        const role = h.role === 'user' ? 'USER' : 'AI';
+        const text = `${role}: ${h.content}`;
+        const lines = doc.splitTextToSize(text, maxLineWidth);
+        
+        if (y + (lines.length * 7) > 280) {
+          doc.addPage();
+          y = 20;
+        }
+        
+        doc.text(lines, margin, y);
+        y += (lines.length * 7) + 5;
+      });
+      
+      doc.save(`prd-agi-chat-${new Date().toISOString().slice(0,10)}.pdf`);
+    } catch (error) {
+      console.error("PDF Export failed, falling back to TXT:", error);
+      const content = chatHistory.map(h => `${h.role === 'user' ? 'USER' : 'AI'}: ${h.content}`).join('\n\n');
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `prd-agi-chat-${new Date().toISOString().slice(0,10)}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
   };
 
   const personas = [

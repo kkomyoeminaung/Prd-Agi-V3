@@ -67,9 +67,13 @@ class BaseKB {
     return t;
   }
 
-  bySource(src: string): RelationalTensor[] {
-    const s = src.toLowerCase().replace(/ /g, "_");
-    return this.tensors.filter((t) => t.identity?.split("->")[0] === s);
+  bySource(query: string): RelationalTensor[] {
+    const words = query.toLowerCase().split(/\s+/);
+    return this.tensors.filter((t) => {
+      const src = t.identity?.split("->")[0].toLowerCase().replace(/_/g, " ") || "";
+      // Check if any word in query matches the source or vice versa
+      return words.some(w => src.includes(w) || w.includes(src));
+    });
   }
 
   stats() {
