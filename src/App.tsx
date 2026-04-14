@@ -312,7 +312,7 @@ export default function App() {
         // Feature 12: Multi-Agent Council Consensus for complex queries
         if (msg.length > 50 || msg.includes('?') || msg.includes('explain')) {
           const context = await prdDB.searchKnowledge(msg);
-          const council = await councilConsensus(msg, context.map(k => k.topic).join(', '), language);
+          const council = await councilConsensus(msg, context.map(k => k.topic).join(', '), language, maxTokens);
           if (council) {
             response = council.consensus;
             kappa = council.kappa;

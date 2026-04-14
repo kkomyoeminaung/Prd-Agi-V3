@@ -188,7 +188,7 @@ const ai = new GoogleGenAI({ apiKey: LOCAL_GEMINI_KEY || "dummy" });
 
 export async function searchWithAI(message: string, history: any[] = [], language: 'en' | 'my' = 'en', maxTokens?: number) {
   try {
-    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေပါ။ သို့သော် technical terms (κ, tensor, PRD) များကို English ဖြင့် ထားပါ။" : "";
+    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေကြားရာတွင် အလွန်အသေးစိတ်ကျပြီး ပြည့်စုံစွာ ဖြေကြားပေးပါ။ အကြောင်းအရာတစ်ခုချင်းစီကို အချက်အလက်စုံလင်စွာဖြင့် ရှည်ရှည်ဝေးဝေး ရှင်းပြပေးပါ။ အနည်းဆုံး စာပိုဒ် ၃ ခုမှ ၅ ခုအထိ ပါဝင်အောင် ဖြေဆိုပေးပါ။ စာသားများ ထပ်မနေပါစေနှင့်။ Technical terms များကိုသာ English ဖြင့် ထားခဲ့ပါ။" : "";
     const response = await ai.models.generateContent({
       model: "gemini-2.0-flash",
       contents: [
@@ -248,8 +248,8 @@ export async function explainResults(queryResult: any, context: string = "", lan
       riskLevel: r.riskLevel,
     }));
 
-    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေပါ။ သို့သော် technical terms (κ, tensor, PRD) များကို English ဖြင့် ထားပါ။" : "";
-
+    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေကြားရာတွင် အလွန်အသေးစိတ်ကျပြီး ပြည့်စုံစွာ ဖြေကြားပေးပါ။ အကြောင်းအရာတစ်ခုချင်းစီကို အချက်အလက်စုံလင်စွာဖြင့် ရှည်ရှည်ဝေးဝေး ရှင်းပြပေးပါ။ အနည်းဆုံး စာပိုဒ် ၃ ခုမှ ၅ ခုအထိ ပါဝင်အောင် ဖြေဆိုပေးပါ။ စာသားများ ထပ်မနေပါစေနှင့်။ Technical terms များကိုသာ English ဖြင့် ထားခဲ့ပါ။" : "";
+    
     const systemInstruction = `
       ${PRD_IDENTITY}
       You are PRD-AGI Master, a specialized AI assistant using Causal Relational Tensors.
@@ -324,7 +324,7 @@ export async function analyzeDocument(text: string, language: 'en' | 'my' = 'en'
 
 export async function refineResponse(originalQuery: string, originalResponse: string, language: 'en' | 'my' = 'en') {
   try {
-    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေကြားရာတွင် သဘာဝကျသော စကားပြောပုံစံကို အသုံးပြုပါ။ စာသားများ ထပ်မနေပါစေနှင့်။ Technical terms များကိုသာ English ဖြင့် ထားခဲ့ပါ။" : "";
+    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေကြားရာတွင် အလွန်အသေးစိတ်ကျပြီး ပြည့်စုံစွာ ဖြေကြားပေးပါ။ အကြောင်းအရာတစ်ခုချင်းစီကို အချက်အလက်စုံလင်စွာဖြင့် ရှည်ရှည်ဝေးဝေး ရှင်းပြပေးပါ။ အနည်းဆုံး စာပိုဒ် ၃ ခုမှ ၅ ခုအထိ ပါဝင်အောင် ဖြေဆိုပေးပါ။ စာသားများ ထပ်မနေပါစေနှင့်။ Technical terms များကိုသာ English ဖြင့် ထားခဲ့ပါ။" : "";
     
     const systemInstruction = `
       ${PRD_IDENTITY}
@@ -332,6 +332,7 @@ export async function refineResponse(originalQuery: string, originalResponse: st
       Critique the provided response to the user's query. 
       Identify logical flaws, inconsistencies, hallucinations, or weak causal links.
       Suggest a refined, more accurate, and causally grounded answer.
+      Ensure the refined answer is detailed, comprehensive, and provides more value than the original.
       
       Format your output as a JSON object:
       {
@@ -361,9 +362,9 @@ export async function refineResponse(originalQuery: string, originalResponse: st
   }
 }
 
-export async function councilConsensus(query: string, context: string, language: 'en' | 'my' = 'en') {
+export async function councilConsensus(query: string, context: string, language: 'en' | 'my' = 'en', maxTokens?: number) {
   try {
-    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေကြားရာတွင် သဘာဝကျသော စကားပြောပုံစံကို အသုံးပြုပါ။ စာသားများ ထပ်မနေပါစေနှင့်။ Technical terms များကိုသာ English ဖြင့် ထားခဲ့ပါ။" : "";
+    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေကြားရာတွင် အလွန်အသေးစိတ်ကျပြီး ပြည့်စုံစွာ ဖြေကြားပေးပါ။ အကြောင်းအရာတစ်ခုချင်းစီကို အချက်အလက်စုံလင်စွာဖြင့် ရှည်ရှည်ဝေးဝေး ရှင်းပြပေးပါ။ အနည်းဆုံး စာပိုဒ် ၃ ခုမှ ၅ ခုအထိ ပါဝင်အောင် ဖြေဆိုပေးပါ။ စာသားများ ထပ်မနေပါစေနှင့်။ Technical terms များကိုသာ English ဖြင့် ထားခဲ့ပါ။" : "";
     
     const systemInstruction = `
       ${PRD_IDENTITY}
@@ -376,6 +377,7 @@ export async function councilConsensus(query: string, context: string, language:
       Context: ${context}
       
       After the debate, provide a synthesized Final Consensus that minimizes logical curvature (κ).
+      The final consensus must be detailed, comprehensive, and thorough.
       Format your output as:
       [DEBATE LOG]
       ... (brief debate summary)
@@ -391,7 +393,7 @@ export async function councilConsensus(query: string, context: string, language:
       { role: "user", content: query }
     ];
 
-    const responseText = await callAI(messages);
+    const responseText = await callAI(messages, { maxTokens });
 
     const kappaMatch = responseText.match(/\[KAPPA\]\s*([\d.]+)/);
     const consensusMatch = responseText.match(/\[FINAL CONSENSUS\]\s*([\s\S]*?)(?=\[KAPPA\]|$)/);
@@ -423,7 +425,7 @@ export async function chatWithAI(message: string, history: any[] = [], attachmen
       contextString += "\n\nLOCAL KNOWLEDGE BASE:\n" + localKnowledge.map(k => `Source: ${k.source}\nContent: ${k.content}`).join("\n---\n");
     }
 
-    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေကြားရာတွင် သဘာဝကျသော စကားပြောပုံစံကို အသုံးပြုပါ။ စာသားများ ထပ်မနေပါစေနှင့်။ Technical terms များကိုသာ English ဖြင့် ထားခဲ့ပါ။" : "";
+    const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေကြားရာတွင် အလွန်အသေးစိတ်ကျပြီး ပြည့်စုံစွာ ဖြေကြားပေးပါ။ အကြောင်းအရာတစ်ခုချင်းစီကို အချက်အလက်စုံလင်စွာဖြင့် ရှည်ရှည်ဝေးဝေး ရှင်းပြပေးပါ။ အနည်းဆုံး စာပိုဒ် ၃ ခုမှ ၅ ခုအထိ ပါဝင်အောင် ဖြေဆိုပေးပါ။ စာသားများ ထပ်မနေပါစေနှင့်။ Technical terms များကိုသာ English ဖြင့် ထားခဲ့ပါ။" : "";
     
     const coreStats = coreEngine.getStats();
     const weightsStr = coreStats.topPaccayas.map(p => `${p.name}: ${p.weight.toFixed(3)}`).join(", ");
