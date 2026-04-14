@@ -67,6 +67,7 @@ export default function App() {
   const [chatInput, setChatInput] = useState('');
   const [isChatting, setIsChatting] = useState(false);
   const [isSearchMode, setIsSearchMode] = useState(false);
+  const [isLongResponseMode, setIsLongResponseMode] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [language, setLanguage] = useState<'en' | 'my'>('en');
   const [currentPersona, setCurrentPersona] = useState('general');
@@ -303,9 +304,10 @@ export default function App() {
       
       let response;
       let kappa = 0.15;
+      const maxTokens = isLongResponseMode ? 4096 : 1536;
 
       if (isSearchMode) {
-        response = await searchWithAI(msg, chatHistory, language);
+        response = await searchWithAI(msg, chatHistory, language, maxTokens);
       } else {
         // Feature 12: Multi-Agent Council Consensus for complex queries
         if (msg.length > 50 || msg.includes('?') || msg.includes('explain')) {
@@ -315,10 +317,10 @@ export default function App() {
             response = council.consensus;
             kappa = council.kappa;
           } else {
-            response = await chatWithAI(msg, chatHistory, currentAttachments, currentPersona, language);
+            response = await chatWithAI(msg, chatHistory, currentAttachments, currentPersona, language, maxTokens);
           }
         } else {
-          response = await chatWithAI(msg, chatHistory, currentAttachments, currentPersona, language);
+          response = await chatWithAI(msg, chatHistory, currentAttachments, currentPersona, language, maxTokens);
         }
       }
       
@@ -862,6 +864,17 @@ export default function App() {
                     >
                       <Search className="w-5 h-5" />
                       {isSearchMode && <span className="text-[10px] font-bold uppercase tracking-widest">Search On</span>}
+                    </button>
+                    <button 
+                      onClick={() => setIsLongResponseMode(!isLongResponseMode)}
+                      className={cn(
+                        "p-3 rounded-xl transition-all duration-200 flex items-center gap-2",
+                        isLongResponseMode ? "bg-purple-500/20 text-purple-400 border border-purple-500/50" : "bg-[#192033] hover:bg-[#252d45] text-muted-foreground"
+                      )}
+                      title="Toggle Long Response Mode"
+                    >
+                      <Zap className="w-5 h-5" />
+                      {isLongResponseMode && <span className="text-[10px] font-bold uppercase tracking-widest">Long Mode</span>}
                     </button>
                     <button 
                       onClick={() => fileInputRef.current?.click()}

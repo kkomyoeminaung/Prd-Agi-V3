@@ -47,14 +47,14 @@ async function fetchWithTimeout(url: string, options: any, timeout = 15000) {
 /**
  * Calls Backend Proxy for Groq
  */
-async function callGroq(messages: any[]): Promise<string> {
+async function callGroq(messages: any[], maxTokens?: number): Promise<string> {
   const model = GROQ_MODELS[0];
   if (!BACKEND_URL) throw new Error("BACKEND_URL not set");
 
   const response = await fetchWithTimeout(BACKEND_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ provider: "groq", model, messages, temperature: 0.7, max_tokens: 4096 })
+    body: JSON.stringify({ provider: "groq", model, messages, temperature: 0.7, max_tokens: maxTokens || 1536 })
   }, 15000);
   
   if (!response.ok) {
@@ -69,13 +69,13 @@ async function callGroq(messages: any[]): Promise<string> {
 /**
  * Calls Backend Proxy for OpenAI
  */
-async function callOpenAI(messages: any[]): Promise<string> {
+async function callOpenAI(messages: any[], maxTokens?: number): Promise<string> {
   if (!BACKEND_URL) throw new Error("BACKEND_URL not set");
 
   const response = await fetchWithTimeout(BACKEND_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ provider: "openai", model: "gpt-4o", messages, temperature: 0.7, max_tokens: 4096 })
+    body: JSON.stringify({ provider: "openai", model: "gpt-4o", messages, temperature: 0.7, max_tokens: maxTokens || 2048 })
   }, 15000);
   
   if (!response.ok) {
@@ -90,13 +90,13 @@ async function callOpenAI(messages: any[]): Promise<string> {
 /**
  * Calls Backend Proxy for Anthropic
  */
-async function callAnthropic(messages: any[]): Promise<string> {
+async function callAnthropic(messages: any[], maxTokens?: number): Promise<string> {
   if (!BACKEND_URL) throw new Error("BACKEND_URL not set");
 
   const response = await fetchWithTimeout(BACKEND_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ provider: "anthropic", model: "claude-3-5-sonnet-20241022", messages, temperature: 0.7, max_tokens: 4096 })
+    body: JSON.stringify({ provider: "anthropic", model: "claude-3-5-sonnet-20241022", messages, temperature: 0.7, max_tokens: maxTokens || 2048 })
   }, 15000);
   
   if (!response.ok) {
@@ -111,12 +111,12 @@ async function callAnthropic(messages: any[]): Promise<string> {
 /**
  * Calls Backend Proxy for Gemini (or local fallback)
  */
-async function callGemini(messages: any[]): Promise<string> {
+async function callGemini(messages: any[], maxTokens?: number): Promise<string> {
   if (BACKEND_URL) {
     const response = await fetchWithTimeout(BACKEND_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: "gemini", model: "gemini-2.0-flash", messages, temperature: 0.7, max_tokens: 4096 })
+      body: JSON.stringify({ provider: "gemini", model: "gemini-2.0-flash", messages, temperature: 0.7, max_tokens: maxTokens || 2048 })
     }, 15000);
     
     if (!response.ok) {
@@ -138,7 +138,7 @@ async function callGemini(messages: any[]): Promise<string> {
         parts: [{ text: m.content }]
       })),
       config: {
-        maxOutputTokens: 4096,
+        maxOutputTokens: maxTokens || 2048,
         temperature: 0.7
       }
     });
@@ -151,7 +151,7 @@ async function callGemini(messages: any[]): Promise<string> {
 /**
  * Master AI Caller (Rotates through providers if one fails)
  */
-async function callAI(messages: any[]): Promise<string> {
+async function callAI(messages: any[], options?: { maxTokens?: number }): Promise<string> {
   if (!BACKEND_URL && !LOCAL_GEMINI_KEY) {
     throw new Error("Neural Core not configured. Please set VITE_BACKEND_URL to connect to your backend worker.");
   }
@@ -159,22 +159,22 @@ async function callAI(messages: any[]): Promise<string> {
   // Priority: Gemini (Local/Direct) -> Groq -> OpenAI -> Anthropic
   try {
     console.log("Attempting Gemini...");
-    return await callGemini(messages);
+    return await callGemini(messages, options?.maxTokens);
   } catch (e: any) {
     console.warn(`Gemini failed: ${e.message}. Trying Groq...`);
     try {
       console.log("Attempting Groq...");
-      return await callGroq(messages);
+      return await callGroq(messages, options?.maxTokens);
     } catch (e2: any) {
       console.warn(`Groq failed: ${e2.message}. Trying OpenAI...`);
       try {
         console.log("Attempting OpenAI...");
-        return await callOpenAI(messages);
+        return await callOpenAI(messages, options?.maxTokens);
       } catch (e3: any) {
         console.warn(`OpenAI failed: ${e3.message}. Trying Anthropic...`);
         try {
           console.log("Attempting Anthropic...");
-          return await callAnthropic(messages);
+          return await callAnthropic(messages, options?.maxTokens);
         } catch (e4: any) {
           console.error("All AI providers failed.", e4);
           throw new Error(`Neural Core connection failed. All providers exhausted. Last error: ${e4.message}`);
@@ -186,7 +186,7 @@ async function callAI(messages: any[]): Promise<string> {
 
 const ai = new GoogleGenAI({ apiKey: LOCAL_GEMINI_KEY || "dummy" });
 
-export async function searchWithAI(message: string, history: any[] = [], language: 'en' | 'my' = 'en') {
+export async function searchWithAI(message: string, history: any[] = [], language: 'en' | 'my' = 'en', maxTokens?: number) {
   try {
     const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေပါ။ သို့သော် technical terms (κ, tensor, PRD) များကို English ဖြင့် ထားပါ။" : "";
     const response = await ai.models.generateContent({
@@ -201,7 +201,7 @@ export async function searchWithAI(message: string, history: any[] = [], languag
       config: {
         systemInstruction: `${PRD_IDENTITY}\nYou are PRD-AGI v3 with Web Access. Search the internet to provide accurate, up-to-date information grounded in causal reasoning. Always cite your findings.${myanmarInstruction}`,
         tools: [{ googleSearch: {} }],
-        maxOutputTokens: 4096,
+        maxOutputTokens: maxTokens || 2048,
         temperature: 0.7
       }
     });
@@ -407,7 +407,7 @@ export async function councilConsensus(query: string, context: string, language:
   }
 }
 
-export async function chatWithAI(message: string, history: any[] = [], attachments: any[] = [], persona: string = "general", language: 'en' | 'my' = 'en') {
+export async function chatWithAI(message: string, history: any[] = [], attachments: any[] = [], persona: string = "general", language: 'en' | 'my' = 'en', maxTokens?: number) {
   try {
     // Feature 1 & 2: Context Injection
     const [pastMemories, localKnowledge] = await Promise.all([
@@ -481,7 +481,7 @@ export async function chatWithAI(message: string, history: any[] = [], attachmen
       { role: "user", content: finalMessage }
     ];
 
-    return await callAI(messages);
+    return await callAI(messages, { maxTokens });
   } catch (error: any) {
     console.error("AI Chat Error:", error);
     return formatAIError(error);
