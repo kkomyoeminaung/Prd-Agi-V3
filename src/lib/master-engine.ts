@@ -1,7 +1,7 @@
 import { RelationalTensor, DISCLAIMERS, RelationalTensorData } from "./prd-engine";
 import { plasticity } from "./causal-plasticity";
-import medicalData from "../data/medical_kb.json";
-import legalData from "../data/legal_kb.json";
+import medicalData from "../components/medical_kb.json";
+import legalData from "../legal_kb.json";
 import financialData from "../data/financial_kb.json";
 import educationData from "../data/education_kb.json";
 import securityData from "../data/security_kb.json";

@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { prdDB } from "../lib/db";
 import { SearchService } from "./search";
-import { coreEngine } from "./coreEngine";
+import { coreEngine } from "../data/coreEngine";
 
 // PRD-AGI v3.1 - Clean Build
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -439,12 +439,13 @@ export async function chatWithAI(message: string, history: any[] = [], attachmen
       - Neuro-Symbolic Bridge: Projecting latent states to 24 Paccaya causal sections.
       
       OPERATING GUIDELINES:
-      1. PERSONA: You are a highly intelligent, analytical, and helpful Causal Intelligence Core. Ground every answer in the provided formulas and concepts (κ, S_causal, ρ_awareness, Paccaya weights, PoLC, etc.).
-      2. LOGIC: Every response should be grounded in causal reasoning. Show the relevant equation first when explaining complex causal dynamics.
-      3. FRAMEWORK: Use the 24 Paccaya generators to provide depth. Use the R(A,B)=[C,W,L,T,U,D] tensor format ONLY when analyzing complex causal relationships, not for simple factual questions.
-      4. HALLUCINATION CONTROL: High curvature (κ) indicates inconsistency. Always prioritize truth-first transitions.
-      5. SAFETY: For sensitive domains (Medical, Legal, Financial), provide the analysis first, followed by a mandatory professional consultation disclaimer.
-      6. LANGUAGE: Respond in the language used by the user (Myanmar or English).
+      1. PERSONA: You are a highly intelligent, analytical, yet friendly and conversational AI assistant. You are PRD-AGI v3.
+      2. TONE & STYLE: Speak naturally and smoothly, like a helpful human expert. Avoid sounding like a robot or repeating the same phrases (e.g., do not keep saying "ကျွန်တော်က PRD-AGI v3 စနစ်တစ်ခု ဖြစ်ပါတယ်").
+      3. LOGIC: Ground your answers in causal reasoning, but explain them in simple, easy-to-understand language unless the user asks for deep technical details.
+      4. FRAMEWORK: Use the 24 Paccaya generators to provide depth, but weave them naturally into the conversation. Use the R(A,B)=[C,W,L,T,U,D] tensor format ONLY when explicitly analyzing complex causal relationships.
+      5. HALLUCINATION CONTROL: High curvature (κ) indicates inconsistency. Always prioritize truth-first transitions.
+      6. SAFETY: For sensitive domains (Medical, Legal, Financial), provide the analysis first, followed by a mandatory professional consultation disclaimer.
+      7. LANGUAGE: Respond in the language used by the user. If the user speaks Myanmar, use natural, conversational Myanmar (Burmese) language. Do not use overly formal or stiff translations.
       ${myanmarInstruction}
     `;
 

@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { Brain, Database, Moon, Search, Clock, Trash2, ExternalLink, RefreshCw, Zap, Shield, Activity, MessageCircle, CheckCircle, Download, Upload, LineChart, Settings2 } from 'lucide-react';
 import { prdDB, Conversation, KnowledgeChunk, DreamLog } from '../lib/db';
 import { DreamAgent } from '../services/dreamAgent';
-import { coreEngine } from '../services/coreEngine';
+import { coreEngine } from '../data/coreEngine';
 import {
   Chart as ChartJS,
   CategoryScale,

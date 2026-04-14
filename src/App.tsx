@@ -15,14 +15,14 @@ import { CurvatureDashboard } from './components/CurvatureDashboard';
 import { CausalFlowDiagram } from './components/CausalFlowDiagram';
 import { JourneyPanel } from './components/JourneyPanel';
 import { PatthanaHeatmap } from './components/PatthanaHeatmap';
-import { QuantumInterference } from './components/QuantumInterference';
-import { DocumentAnalysis } from './components/DocumentAnalysis';
+import { QuantumInterference } from './data/QuantumInterference';
+import { DocumentAnalysis } from './lib/DocumentAnalysis';
 import { CausalGraph } from './components/CausalGraph';
 import { MemoryBank, KnowledgeBase, DreamLogPanel, CausalPlasticity, SystemHealth, SelfRefinementLog, ValidationDashboard, KnowledgeTransfer, LearningDashboard, MetaLearningProgress } from './components/MemoryPanels';
 import { persistence } from './lib/persistence';
 import { prdDB } from './lib/db';
 import { DreamAgent } from './services/dreamAgent';
-import { coreEngine } from './services/coreEngine';
+import { coreEngine } from './data/coreEngine';
 import { explainResults, chatWithAI, searchWithAI, analyzeDocument, refineResponse, councilConsensus } from './services/gemini';
 
 function cn(...inputs: ClassValue[]) {
