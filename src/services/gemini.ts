@@ -10,7 +10,7 @@ const LOCAL_GEMINI_KEY = process.env.GEMINI_API_KEY || import.meta.env.VITE_GEMI
 const GROQ_MODELS = [
   "llama-3.3-70b-versatile",
   "deepseek-r1-distill-llama-70b",
-  "llama-3.1-70b-versatile"
+  "qwen-2.5-32b"
 ];
 
 const PRD_IDENTITY = `
@@ -54,7 +54,7 @@ async function callGroq(messages: any[]): Promise<string> {
   const response = await fetchWithTimeout(BACKEND_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ provider: "groq", model, messages, temperature: 0.7 })
+    body: JSON.stringify({ provider: "groq", model, messages, temperature: 0.7, max_tokens: 4096 })
   }, 15000);
   
   if (!response.ok) {
@@ -75,7 +75,7 @@ async function callOpenAI(messages: any[]): Promise<string> {
   const response = await fetchWithTimeout(BACKEND_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ provider: "openai", model: "gpt-4o", messages, temperature: 0.7 })
+    body: JSON.stringify({ provider: "openai", model: "gpt-4o", messages, temperature: 0.7, max_tokens: 4096 })
   }, 15000);
   
   if (!response.ok) {
@@ -96,7 +96,7 @@ async function callAnthropic(messages: any[]): Promise<string> {
   const response = await fetchWithTimeout(BACKEND_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ provider: "anthropic", model: "claude-3-5-sonnet-20241022", messages, temperature: 0.7 })
+    body: JSON.stringify({ provider: "anthropic", model: "claude-3-5-sonnet-20241022", messages, temperature: 0.7, max_tokens: 4096 })
   }, 15000);
   
   if (!response.ok) {
@@ -116,7 +116,7 @@ async function callGemini(messages: any[]): Promise<string> {
     const response = await fetchWithTimeout(BACKEND_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: "gemini", model: "gemini-2.0-flash", messages, temperature: 0.7 })
+      body: JSON.stringify({ provider: "gemini", model: "gemini-2.0-flash", messages, temperature: 0.7, max_tokens: 4096 })
     }, 15000);
     
     if (!response.ok) {
@@ -136,7 +136,11 @@ async function callGemini(messages: any[]): Promise<string> {
       contents: messages.map(m => ({
         role: m.role === 'system' ? 'user' : (m.role === 'assistant' ? 'model' : 'user'),
         parts: [{ text: m.content }]
-      }))
+      })),
+      config: {
+        maxOutputTokens: 4096,
+        temperature: 0.7
+      }
     });
     return response.text || "";
   }
@@ -196,7 +200,9 @@ export async function searchWithAI(message: string, history: any[] = [], languag
       ],
       config: {
         systemInstruction: `${PRD_IDENTITY}\nYou are PRD-AGI v3 with Web Access. Search the internet to provide accurate, up-to-date information grounded in causal reasoning. Always cite your findings.${myanmarInstruction}`,
-        tools: [{ googleSearch: {} }]
+        tools: [{ googleSearch: {} }],
+        maxOutputTokens: 4096,
+        temperature: 0.7
       }
     });
 
