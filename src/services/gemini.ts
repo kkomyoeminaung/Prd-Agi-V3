@@ -156,7 +156,7 @@ async function callAI(messages: any[], options?: { maxTokens?: number }): Promis
     throw new Error("Neural Core not configured. Please set VITE_BACKEND_URL to connect to your backend worker.");
   }
 
-  // Priority: Gemini (Local/Direct) -> Groq -> OpenAI -> Anthropic
+  // Priority: Gemini (Local/Direct) -> Groq -> OpenAI
   try {
     console.log("Attempting Gemini...");
     return await callGemini(messages, options?.maxTokens);
@@ -171,14 +171,8 @@ async function callAI(messages: any[], options?: { maxTokens?: number }): Promis
         console.log("Attempting OpenAI...");
         return await callOpenAI(messages, options?.maxTokens);
       } catch (e3: any) {
-        console.warn(`OpenAI failed: ${e3.message}. Trying Anthropic...`);
-        try {
-          console.log("Attempting Anthropic...");
-          return await callAnthropic(messages, options?.maxTokens);
-        } catch (e4: any) {
-          console.error("All AI providers failed.", e4);
-          throw new Error(`Neural Core connection failed. All providers exhausted. Last error: ${e4.message}`);
-        }
+        console.error("All AI providers failed.", e3);
+        throw new Error(`Neural Core connection failed. All providers exhausted. Last error: ${e3.message}`);
       }
     }
   }
