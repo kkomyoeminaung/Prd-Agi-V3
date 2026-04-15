@@ -304,16 +304,22 @@ export default function App() {
       
       let response;
       let kappa = 0.15;
-      const maxTokens = isLongResponseMode ? 4096 : 1536;
+      const maxTokens = isLongResponseMode ? 8192 : 4096;
 
       if (isSearchMode) {
         response = await searchWithAI(msg, chatHistory, language, maxTokens);
       } else {
-        // Feature 12: Multi-Agent Council Consensus for complex queries
-        if (msg.length > 50 || msg.includes('?') || msg.includes('explain')) {
+        // Only use Council for genuinely complex queries (long + analytical keywords)
+        const isComplexQuery = msg.length > 120 && (
+          msg.includes('explain') || msg.includes('analyze') || msg.includes('compare') ||
+          msg.includes('ရှင်းပြ') || msg.includes('ခွဲခြမ်း') || msg.includes('နှိုင်းယှဉ်') ||
+          msg.includes('အသေးစိတ်') || msg.includes('ဘာကြောင့်')
+        );
+
+        if (isComplexQuery) {
           const context = await prdDB.searchKnowledge(msg);
           const council = await councilConsensus(msg, context.map(k => k.topic).join(', '), language, maxTokens);
-          if (council) {
+          if (council && council.consensus) {
             response = council.consensus;
             kappa = council.kappa;
           } else {
@@ -322,22 +328,25 @@ export default function App() {
         } else {
           response = await chatWithAI(msg, chatHistory, currentAttachments, currentPersona, language, maxTokens);
         }
+
+        // Only run refinement for simple chatWithAI responses, not council responses
+        if (!isComplexQuery) {
+          const refinement = await refineResponse(msg, response, language);
+          if (refinement && refinement.improvementScore > 0.5 && refinement.refinedResponse?.length > response.length * 0.8) {
+            response = refinement.refinedResponse;
+            kappa = refinement.curvature;
+            await prdDB.saveRefinement({
+              query: msg,
+              original: response,
+              critique: refinement.critique,
+              refined: refinement.refinedResponse,
+              improvementScore: refinement.improvementScore
+            });
+          }
+        }
       }
-      
-      // Feature 6: Self-Refinement
-      const refinement = await refineResponse(msg, response, language);
-      let finalResponse = response;
-      if (refinement && refinement.improvementScore > 0.2) {
-        finalResponse = refinement.refinedResponse;
-        kappa = refinement.curvature;
-        await prdDB.saveRefinement({
-          query: msg,
-          original: response,
-          critique: refinement.critique,
-          refined: refinement.refinedResponse,
-          improvementScore: refinement.improvementScore
-        });
-      }
+
+      const finalResponse = response || "⚠️ No response received. Please try again.";
 
       const aiMsg = { role: 'ai' as const, content: finalResponse, timestamp: Date.now() };
       setChatHistory(prev => [...prev, { role: aiMsg.role, content: aiMsg.content }]);

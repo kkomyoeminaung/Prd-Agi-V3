@@ -54,7 +54,7 @@ async function callGroq(messages: any[], maxTokens?: number): Promise<string> {
   const response = await fetchWithTimeout(BACKEND_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ provider: "groq", model, messages, temperature: 0.7, max_tokens: maxTokens || 1536 })
+    body: JSON.stringify({ provider: "groq", model, messages, temperature: 0.7, max_tokens: maxTokens || 4096 })
   }, 15000);
   
   if (!response.ok) {
@@ -75,7 +75,7 @@ async function callOpenAI(messages: any[], maxTokens?: number): Promise<string> 
   const response = await fetchWithTimeout(BACKEND_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ provider: "openai", model: "gpt-4o", messages, temperature: 0.7, max_tokens: maxTokens || 2048 })
+    body: JSON.stringify({ provider: "openai", model: "gpt-4o", messages, temperature: 0.7, max_tokens: maxTokens || 4096 })
   }, 15000);
   
   if (!response.ok) {
@@ -96,7 +96,7 @@ async function callAnthropic(messages: any[], maxTokens?: number): Promise<strin
   const response = await fetchWithTimeout(BACKEND_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ provider: "anthropic", model: "claude-3-5-sonnet-20241022", messages, temperature: 0.7, max_tokens: maxTokens || 2048 })
+    body: JSON.stringify({ provider: "anthropic", model: "claude-3-5-sonnet-20241022", messages, temperature: 0.7, max_tokens: maxTokens || 4096 })
   }, 15000);
   
   if (!response.ok) {
@@ -116,7 +116,7 @@ async function callGemini(messages: any[], maxTokens?: number): Promise<string> 
     const response = await fetchWithTimeout(BACKEND_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: "gemini", model: "gemini-2.0-flash", messages, temperature: 0.7, max_tokens: maxTokens || 2048 })
+      body: JSON.stringify({ provider: "gemini", model: "gemini-2.0-flash", messages, temperature: 0.7, max_tokens: maxTokens || 4096 })
     }, 15000);
     
     if (!response.ok) {
@@ -138,7 +138,7 @@ async function callGemini(messages: any[], maxTokens?: number): Promise<string> 
         parts: [{ text: m.content }]
       })),
       config: {
-        maxOutputTokens: maxTokens || 2048,
+        maxOutputTokens: maxTokens || 4096,
         temperature: 0.7
       }
     });
@@ -189,26 +189,39 @@ const ai = new GoogleGenAI({ apiKey: LOCAL_GEMINI_KEY || "dummy" });
 export async function searchWithAI(message: string, history: any[] = [], language: 'en' | 'my' = 'en', maxTokens?: number) {
   try {
     const myanmarInstruction = language === 'my' ? "\nမြန်မာဘာသာဖြင့် ဖြေကြားရာတွင် အလွန်အသေးစိတ်ကျပြီး ပြည့်စုံစွာ ဖြေကြားပေးပါ။ အကြောင်းအရာတစ်ခုချင်းစီကို အချက်အလက်စုံလင်စွာဖြင့် ရှည်ရှည်ဝေးဝေး ရှင်းပြပေးပါ။ အနည်းဆုံး စာပိုဒ် ၃ ခုမှ ၅ ခုအထိ ပါဝင်အောင် ဖြေဆိုပေးပါ။ စာသားများ ထပ်မနေပါစေနှင့်။ Technical terms များကိုသာ English ဖြင့် ထားခဲ့ပါ။" : "";
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: [
-        ...history.map(h => ({
-          role: h.role === 'user' ? 'user' : 'model',
-          parts: [{ text: h.content }]
-        })),
-        { role: 'user', parts: [{ text: message }] }
-      ],
-      config: {
-        systemInstruction: `${PRD_IDENTITY}\nYou are PRD-AGI v3 with Web Access. Search the internet to provide accurate, up-to-date information grounded in causal reasoning. Always cite your findings.${myanmarInstruction}`,
-        tools: [{ googleSearch: {} }],
-        maxOutputTokens: maxTokens || 2048,
-        temperature: 0.7
-      }
-    });
 
-    return response.text;
+    // Try Gemini with search grounding if local key is available
+    if (LOCAL_GEMINI_KEY && LOCAL_GEMINI_KEY !== "dummy") {
+      const ai = new GoogleGenAI({ apiKey: LOCAL_GEMINI_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: [
+          ...history.map(h => ({
+            role: h.role === 'user' ? 'user' : 'model',
+            parts: [{ text: h.content }]
+          })),
+          { role: 'user', parts: [{ text: message }] }
+        ],
+        config: {
+          systemInstruction: `${PRD_IDENTITY}\nYou are PRD-AGI v3 with Web Access. Search the internet to provide accurate, up-to-date information grounded in causal reasoning. Always cite your findings.${myanmarInstruction}`,
+          tools: [{ googleSearch: {} }],
+          maxOutputTokens: maxTokens || 4096,
+          temperature: 0.7
+        }
+      });
+      if (response.text) return response.text;
+    }
+
+    // Fallback: use callAI (proxy) without search grounding
+    const messages = [
+      { role: "system", content: `${PRD_IDENTITY}\nYou are PRD-AGI v3. Provide accurate, detailed, and comprehensive information. Search your knowledge thoroughly.${myanmarInstruction}` },
+      ...history.map(h => ({ role: h.role === 'user' ? 'user' : 'assistant', content: h.content })),
+      { role: "user", content: message }
+    ];
+    return await callAI(messages, { maxTokens: maxTokens || 4096 });
+
   } catch (error: any) {
-    console.error("Gemini Search Error:", error);
+    console.error("Search AI Error:", error);
     return formatAIError(error);
   }
 }
@@ -376,13 +389,13 @@ export async function councilConsensus(query: string, context: string, language:
       Debate the query: "${query}"
       Context: ${context}
       
-      After the debate, provide a synthesized Final Consensus that minimizes logical curvature (κ).
-      The final consensus must be detailed, comprehensive, and thorough.
+      Keep the debate log VERY SHORT (2-3 lines max per agent). 
+      The FINAL CONSENSUS must be DETAILED, COMPREHENSIVE and THOROUGH — this is the most important part.
       Format your output as:
       [DEBATE LOG]
-      ... (brief debate summary)
+      (2-3 lines max summarizing key agent positions)
       [FINAL CONSENSUS]
-      ... (the actual answer)
+      (Full detailed answer here - minimum 3-5 paragraphs)
       [KAPPA]
       (number between 0-1)
       ${myanmarInstruction}
