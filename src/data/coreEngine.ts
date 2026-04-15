@@ -146,12 +146,29 @@ class CoreEngine {
   }
 
   private simulatePerformance(train: any[], val: any[], params: any): number {
-    // Heuristic simulation of how these params would affect kappa
-    // In a real system, this would be a full back-testing loop
-    let score = val.reduce((acc, curr) => acc + (curr.kappa || 0.5), 0) / val.length;
-    // Penalty for too high/low thresholds
-    if (params.theta_pos > params.theta_neg) score += 1.0;
-    return score * (1 + (Math.random() - 0.5) * 0.05); // Add slight noise
+    // Deterministic evaluation using validation set metrics instead of random noise
+    // We want parameters that keep kappa stable and low (e.g., target 0.15)
+    const TARGET_KAPPA = 0.15;
+    
+    // Calculate Mean Squared Error (MSE) of kappa against the target in the validation set
+    const mse = val.reduce((acc, curr) => {
+      const k = curr.kappa || 0.5;
+      return acc + Math.pow(k - TARGET_KAPPA, 2);
+    }, 0) / Math.max(val.length, 1);
+
+    let score = mse;
+
+    // Penalty for illogical thresholds (positive threshold should be lower than negative)
+    if (params.theta_pos >= params.theta_neg) {
+      score += 1.0; 
+    }
+
+    // Penalty for extreme learning rates
+    if (params.eta0 > 0.2) {
+      score += 0.5;
+    }
+
+    return score;
   }
 
   // Feature 5: Core Protection

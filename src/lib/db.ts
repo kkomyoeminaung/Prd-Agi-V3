@@ -26,7 +26,7 @@ export interface DreamLog {
 
 class PRDDatabase {
   private dbName = 'prd_agi_v3_db';
-  private version = 2;
+  private version = 3;
   private db: IDBPDatabase | null = null;
 
   async getDB() {
@@ -59,6 +59,9 @@ class PRDDatabase {
         }
         if (!db.objectStoreNames.contains('meta_params')) {
           db.createObjectStore('meta_params', { keyPath: 'id', autoIncrement: true });
+        }
+        if (!db.objectStoreNames.contains('keyval')) {
+          db.createObjectStore('keyval');
         }
       },
     });

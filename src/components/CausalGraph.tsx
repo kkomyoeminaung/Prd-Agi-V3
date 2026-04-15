@@ -16,7 +16,7 @@ export const CausalGraph: React.FC = () => {
 
       // Create nodes from knowledge
       knowledge.forEach((k, i) => {
-        nodes.push({ id: `k-${i}`, name: k.topic, type: 'knowledge', val: 10 });
+        nodes.push({ id: `k-${i}`, name: k.content.slice(0, 20) + '...', type: 'knowledge', val: 10 });
       });
 
       // Create nodes from conversations

@@ -1,4 +1,5 @@
 // src/lib/persistence.ts
+import { prdDB } from './db';
 
 export interface ChatMessage {
   role: 'user' | 'ai';
@@ -21,78 +22,70 @@ const STORAGE_KEYS = {
 };
 
 export const persistence = {
-  saveChat: (message: ChatMessage) => {
-    const history = persistence.loadChat();
+  saveChat: async (message: ChatMessage) => {
+    const history = await persistence.loadChat();
     history.push(message);
     if (history.length > 50) history.shift();
-    localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(history));
+    const db = await prdDB.getDB();
+    await db.put('keyval', history, STORAGE_KEYS.HISTORY);
   },
 
-  loadChat: (): ChatMessage[] => {
-    const saved = localStorage.getItem(STORAGE_KEYS.HISTORY);
-    if (!saved) return [];
-    try {
-      return JSON.parse(saved);
-    } catch (e) {
-      return [];
-    }
+  loadChat: async (): Promise<ChatMessage[]> => {
+    const db = await prdDB.getDB();
+    const saved = await db.get('keyval', STORAGE_KEYS.HISTORY);
+    return saved || [];
   },
 
-  trackKeywords: (text: string) => {
-    const keywords = persistence.loadKeywords();
-    // Simple keyword extraction: words > 4 chars
+  trackKeywords: async (text: string) => {
+    const keywords = await persistence.loadKeywords();
     const words = text.toLowerCase().match(/\b\w{4,}\b/g) || [];
     words.forEach(word => {
-      // Filter out common stop words if needed, but keeping it simple for now
       keywords[word] = (keywords[word] || 0) + 1;
     });
-    localStorage.setItem(STORAGE_KEYS.KEYWORDS, JSON.stringify(keywords));
+    const db = await prdDB.getDB();
+    await db.put('keyval', keywords, STORAGE_KEYS.KEYWORDS);
   },
 
-  loadKeywords: (): Record<string, number> => {
-    const saved = localStorage.getItem(STORAGE_KEYS.KEYWORDS);
-    if (!saved) return {};
-    try {
-      return JSON.parse(saved);
-    } catch (e) {
-      return {};
-    }
+  loadKeywords: async (): Promise<Record<string, number>> => {
+    const db = await prdDB.getDB();
+    const saved = await db.get('keyval', STORAGE_KEYS.KEYWORDS);
+    return saved || {};
   },
 
-  trackKappa: (kappa: number) => {
-    const trend = persistence.loadKappaTrend();
+  trackKappa: async (kappa: number) => {
+    const trend = await persistence.loadKappaTrend();
     trend.push({ timestamp: Date.now(), kappa });
     if (trend.length > 100) trend.shift();
-    localStorage.setItem(STORAGE_KEYS.KAPPA_TREND, JSON.stringify(trend));
-    // We don't overwrite LAST_KAPPA here, we do it at the end of session or use it for comparison
+    const db = await prdDB.getDB();
+    await db.put('keyval', trend, STORAGE_KEYS.KAPPA_TREND);
   },
 
-  saveSessionEnd: (kappa: number) => {
-    localStorage.setItem(STORAGE_KEYS.LAST_KAPPA, kappa.toString());
+  saveSessionEnd: async (kappa: number) => {
+    const db = await prdDB.getDB();
+    await db.put('keyval', kappa, STORAGE_KEYS.LAST_KAPPA);
   },
 
-  loadKappaTrend: (): KappaEntry[] => {
-    const saved = localStorage.getItem(STORAGE_KEYS.KAPPA_TREND);
-    if (!saved) return [];
-    try {
-      return JSON.parse(saved);
-    } catch (e) {
-      return [];
-    }
+  loadKappaTrend: async (): Promise<KappaEntry[]> => {
+    const db = await prdDB.getDB();
+    const saved = await db.get('keyval', STORAGE_KEYS.KAPPA_TREND);
+    return saved || [];
   },
 
-  incrementOptSteps: (count: number = 1) => {
-    const steps = persistence.loadOptSteps();
-    localStorage.setItem(STORAGE_KEYS.OPT_STEPS, (steps + count).toString());
+  incrementOptSteps: async (count: number = 1) => {
+    const steps = await persistence.loadOptSteps();
+    const db = await prdDB.getDB();
+    await db.put('keyval', steps + count, STORAGE_KEYS.OPT_STEPS);
   },
 
-  loadOptSteps: (): number => {
-    const saved = localStorage.getItem(STORAGE_KEYS.OPT_STEPS);
-    return saved ? parseInt(saved, 10) : 0;
+  loadOptSteps: async (): Promise<number> => {
+    const db = await prdDB.getDB();
+    const saved = await db.get('keyval', STORAGE_KEYS.OPT_STEPS);
+    return saved || 0;
   },
 
-  getLastSessionKappa: (): number => {
-    const saved = localStorage.getItem(STORAGE_KEYS.LAST_KAPPA);
-    return saved ? parseFloat(saved) : 0.45; // Default starting kappa
+  getLastSessionKappa: async (): Promise<number> => {
+    const db = await prdDB.getDB();
+    const saved = await db.get('keyval', STORAGE_KEYS.LAST_KAPPA);
+    return saved !== undefined ? saved : 0.45;
   }
 };

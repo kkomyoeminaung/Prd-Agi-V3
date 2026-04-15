@@ -61,9 +61,7 @@ export default function App() {
   const [sessionMessage, setSessionMessage] = useState<string | null>(null);
   const [showSessionMessage, setShowSessionMessage] = useState(false);
   
-  const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', content: string}[]>(() => {
-    return persistence.loadChat().map(m => ({ role: m.role, content: m.content }));
-  });
+  const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', content: string}[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [isChatting, setIsChatting] = useState(false);
   const [isSearchMode, setIsSearchMode] = useState(false);
@@ -80,19 +78,25 @@ export default function App() {
   }, [chatHistory]);
 
   useEffect(() => {
-    const lastKappa = persistence.getLastSessionKappa();
-    const trend = persistence.loadKappaTrend();
-    const currentKappa = trend.length > 0 ? trend[trend.length - 1].kappa : 0.45;
-    
-    if (trend.length > 0) {
-      setSessionMessage(`PRD remembers your last session: κ improved from ${lastKappa.toFixed(2)} to ${currentKappa.toFixed(2)}`);
-      setShowSessionMessage(true);
-      setTimeout(() => setShowSessionMessage(false), 8000);
-    }
+    async function init() {
+      const history = await persistence.loadChat();
+      setChatHistory(history.map(m => ({ role: m.role, content: m.content })));
 
-    // Initialize Dream Agent
-    DreamAgent.init();
-    coreEngine.init();
+      const lastKappa = await persistence.getLastSessionKappa();
+      const trend = await persistence.loadKappaTrend();
+      const currentKappa = trend.length > 0 ? trend[trend.length - 1].kappa : 0.45;
+      
+      if (trend.length > 0) {
+        setSessionMessage(`PRD remembers your last session: κ improved from ${lastKappa.toFixed(2)} to ${currentKappa.toFixed(2)}`);
+        setShowSessionMessage(true);
+        setTimeout(() => setShowSessionMessage(false), 8000);
+      }
+
+      // Initialize Dream Agent
+      DreamAgent.init();
+      await coreEngine.init();
+    }
+    init();
   }, []);
 
   const startListening = () => {
@@ -247,19 +251,19 @@ export default function App() {
         const result = await engine.fusionQuery(query);
         setFusionResult(result);
         setAnalysisResult(result);
-        persistence.trackKappa(result.kappa);
-        persistence.trackKeywords(query);
-        persistence.incrementOptSteps(4);
-        persistence.saveSessionEnd(result.kappa);
+        await persistence.trackKappa(result.kappa);
+        await persistence.trackKeywords(query);
+        await persistence.incrementOptSteps(4);
+        await persistence.saveSessionEnd(result.kappa);
       } else {
         // Simulate some latency for "causal processing"
         await new Promise(r => setTimeout(r, 800));
         const result = engine.query(inputs, selectedDomain);
         setAnalysisResult(result);
-        persistence.trackKappa(result.kappa);
-        persistence.trackKeywords(query);
-        persistence.incrementOptSteps(1);
-        persistence.saveSessionEnd(result.kappa);
+        await persistence.trackKappa(result.kappa);
+        await persistence.trackKeywords(query);
+        await persistence.incrementOptSteps(1);
+        await persistence.saveSessionEnd(result.kappa);
       }
       
       setActiveTab('analysis');
@@ -298,8 +302,8 @@ export default function App() {
         timestamp: Date.now()
       };
       setChatHistory(prev => [...prev, { role: userMsg.role, content: userMsg.content }]);
-      persistence.saveChat(userMsg);
-      persistence.trackKeywords(msg);
+      await persistence.saveChat(userMsg);
+      await persistence.trackKeywords(msg);
       setIsChatting(true);
       
       let response;
@@ -350,7 +354,7 @@ export default function App() {
 
       const aiMsg = { role: 'ai' as const, content: finalResponse, timestamp: Date.now() };
       setChatHistory(prev => [...prev, { role: aiMsg.role, content: aiMsg.content }]);
-      persistence.saveChat(aiMsg);
+      await persistence.saveChat(aiMsg);
 
       // Save to IndexedDB for Feature 1 (Memory)
       await prdDB.saveConversation({

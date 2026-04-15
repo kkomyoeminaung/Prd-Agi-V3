@@ -88,27 +88,6 @@ async function callOpenAI(messages: any[], maxTokens?: number): Promise<string> 
 }
 
 /**
- * Calls Backend Proxy for Anthropic
- */
-async function callAnthropic(messages: any[], maxTokens?: number): Promise<string> {
-  if (!BACKEND_URL) throw new Error("BACKEND_URL not set");
-
-  const response = await fetchWithTimeout(BACKEND_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ provider: "anthropic", model: "claude-3-5-sonnet-20241022", messages, temperature: 0.7, max_tokens: maxTokens || 4096 })
-  }, 15000);
-  
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Anthropic Proxy failed: ${errText}`);
-  }
-  const data = await response.json();
-  if (data.error) throw new Error(data.error);
-  return data.content[0].text;
-}
-
-/**
  * Calls Backend Proxy for Gemini (or local fallback)
  */
 async function callGemini(messages: any[], maxTokens?: number): Promise<string> {

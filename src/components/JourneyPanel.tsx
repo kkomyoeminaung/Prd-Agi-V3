@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Line } from 'react-chartjs-2';
 import { 
   Chart as ChartJS, 
@@ -11,7 +11,7 @@ import {
   Legend,
   Filler
 } from 'chart.js';
-import { persistence } from '../lib/persistence';
+import { persistence, KappaEntry } from '../lib/persistence';
 import { TrendingDown, Zap, History } from 'lucide-react';
 
 ChartJS.register(
@@ -26,9 +26,21 @@ ChartJS.register(
 );
 
 export const JourneyPanel: React.FC = () => {
-  const trend = persistence.loadKappaTrend();
-  const optSteps = persistence.loadOptSteps();
-  const keywords = persistence.loadKeywords();
+  const [trend, setTrend] = useState<KappaEntry[]>([]);
+  const [optSteps, setOptSteps] = useState<number>(0);
+  const [keywords, setKeywords] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    async function loadData() {
+      const t = await persistence.loadKappaTrend();
+      const o = await persistence.loadOptSteps();
+      const k = await persistence.loadKeywords();
+      setTrend(t);
+      setOptSteps(o);
+      setKeywords(k);
+    }
+    loadData();
+  }, []);
   
   const sortedKeywords = Object.entries(keywords)
     .sort(([, a], [, b]) => b - a)
